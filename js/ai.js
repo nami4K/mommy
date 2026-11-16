@@ -200,7 +200,7 @@ async function openMomSettings() {
   const status = h('div', { class: 'check-box' });
   openSheet('👩 엄마 설정',
     h('h4', { class: 'label' }, '🤖 AI 선생님 (Claude)'),
-    h('p', { class: 'note' }, '단어장 사진 읽기와 문장 확인에 써요. platform.claude.com에서 만든 API 키를 넣어 주세요. 쓴 만큼 요금이 나가니, 이 앱 전용 키를 만들고 사용 한도를 정해 두는 것을 권해요. 키는 이 기기 안에만 저장돼요.'),
+    h('p', { class: 'note' }, '단어장 사진 읽기와 문장 확인에 써요. platform.claude.com에서 이 앱 전용 키를 만들어 넣어 주세요. 키는 이 기기 안에만 저장되고, 앱 코드(공개 저장소)·백업 코드·단어 나누기 코드에는 들어가지 않아요. 아래 앱 한도는 이 앱이 쓰는 양만 막아요. 키가 새어 나갔을 때를 대비해 콘솔에서도 사용 한도를 꼭 정해 두세요. 기기를 잃어버리면 콘솔에서 키를 지우면 돼요.'),
     key,
     h('label', { class: 'set-row col' }, h('span', {}, '🎤 문장 확인에 쓸 모델 (자주 써요)'), modelSel('sent')),
     h('label', { class: 'set-row col' }, h('span', {}, '📷 사진 읽기에 쓸 모델 (가끔 써요)'), modelSel('photo')),
@@ -226,7 +226,7 @@ async function sendAIConfig() {
   const m = MOM();
   if (!m.key) { toast('먼저 API 키를 저장해 주세요'); return; }
   const code = await encodeCode({ key: m.key, modelSent: taskModel('sent'), modelPhoto: taskModel('photo'), capUsd: m.capUsd ?? 3, pinHash: m.pinHash }, 'BWK1');
-  showQR('AI 설정 옮기기', code, '아이 기기의 앱에서 나 → ⚙️ 설정 → 📷 QR로 받기로 찍어요. 이 화면은 아이에게 보여 주지 마세요.');
+  showQR('AI 설정 옮기기', code, '아이 기기의 앱에서 나 → ⚙️ 설정 → 📷 QR로 받기로 찍어요. ⚠️ 이 QR 안에 API 키가 들어 있어요. 캡처하거나 남에게 보내지 말고, 옮긴 뒤 바로 닫아 주세요.');
 }
 function receiveAIConfig(d) {
   const m = MOM();
