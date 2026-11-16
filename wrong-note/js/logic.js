@@ -186,7 +186,7 @@ function stats(kidId) {
       r.conquered++;
       if (g.freq) r.freqGrad++;
       const m = r.month[monthOf(g.gradAt)]; if (m) m.grad++;
-      const u = p.unit || p.subject; if (u) r.units[u] = (r.units[u] || 0) + 1;
+      const u = typesOf(p)[0] || unitLine(p) || p.subject; if (u) r.units[u] = (r.units[u] || 0) + 1;
     }
     for (const x of g.hist) {
       const m = r.month[monthOf(x.t)];
@@ -245,3 +245,68 @@ function newFamilyCode() {
   return s.slice(0, 4) + '-' + s.slice(4);
 }
 const cleanCode = c => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^(.{4})(.+)$/, '$1-$2');
+
+/* ================= 학년-학기 · 단원 표시 ================= */
+/* 학기: 3~8월 1학기, 9~2월 2학기 */
+const curSemester = (d = new Date()) => (d.getMonth() + 1 >= 3 && d.getMonth() + 1 <= 8 ? 1 : 2);
+function gradeSem(p) {
+  const book = p.src && p.src.bookId ? Store.get('book', p.src.bookId) : null;
+  return { g: p.grade || (book && book.grade) || null, s: p.semester || (book && book.semester) || null };
+}
+/* 문제 아래에 붙는 한 줄: "2-2 · 3. 길이 재기" */
+function unitLine(p) {
+  const { g, s } = gradeSem(p);
+  const gs = g ? (s ? `${g}-${s}` : `${g}학년`) : '';
+  return [gs, p.unit || ''].filter(Boolean).join(' · ');
+}
+
+/* ================= 문제 유형 =================
+ * 밤 정리 때 Claude가 문제 그림을 보고 아래 목록에서 골라 problem.types에 넣어요(목록에 없으면 새 이름).
+ * 엄마가 문제 고치기 창에서 바꿀 수 있어요. 처음 목록이라 써 보면서 늘리거나 고치면 돼요. */
+const TYPE_GROUPS = [
+  ['수와 연산', ['수 세기·읽기', '수의 크기 비교', '자릿값', '뛰어 세기·수 규칙', '받아올림 덧셈', '받아내림 뺄셈', '세 수의 계산', '어떤 수(□) 구하기', '덧셈·뺄셈 문장제', '곱셈구구', '곱셈 문장제', '합차 문제']],
+  ['도형', ['도형 이름·특징', '도형 개수 세기', '칠교·조각 맞추기', '넓이·칸 세기', '쌓기나무']],
+  ['측정', ['길이 재기·어림', '시각 읽기', '시간 계산', '들이·무게 비교']],
+  ['규칙과 자료', ['규칙 찾기', '분류하기', '표·그래프']],
+  ['국어', ['받아쓰기·맞춤법', '낱말 뜻', '문장 부호', '글 읽고 답하기']],
+];
+const ALL_TYPES = TYPE_GROUPS.flatMap(g => g[1]);
+const typesOf = p => (Array.isArray(p.types) ? p.types.filter(Boolean) : []);
+
+/* ================= 취약한 곳 분석 (엄마용) =================
+ * 숫자는 앱이 계산하고, 유형 붙이기와 한 주 메모(report/{kidId})는 Claude가 해요.
+ * 약한 정도 = 아직 졸업 못 한 문제의 틀린 횟수 합 + 단골 문제 하나당 2점 + 최근 30일 틀림 하나당 1점 */
+function analysis(kidId) {
+  const since = Date.now() - 30 * DAY;
+  const groups = { type: {}, unit: {} };
+  const reasons = {};
+  const frequent = [];
+  let untyped = 0;
+  const bump = (bag, key, p, g) => {
+    const b = bag[key] || (bag[key] = { key, problems: 0, open: 0, wrong: 0, freq: 0, grad: 0, recent: 0, ids: [] });
+    b.problems++; b.ids.push(p.id);
+    const wrong = g ? g.wrong : 1;
+    b.wrong += wrong;
+    if (g && g.grad) b.grad++; else { b.open++; b.score = (b.score || 0) + wrong; }
+    if (g && g.freq && !g.grad) b.freq++;
+    b.recent += g ? g.hist.filter(x => !x.ok && x.t > since).length : 0;
+  };
+  for (const p of kidProblems(kidId)) {
+    if (p.status === 'review') continue;
+    const g = prog(p.id);
+    const types = typesOf(p);
+    if (!types.length) untyped++;
+    types.forEach(t => bump(groups.type, t, p, g));
+    const ul = unitLine(p);
+    if (ul) bump(groups.unit, ul, p, g);
+    if (g) {
+      (g.reasonTags || []).forEach(t => { reasons[t] = (reasons[t] || 0) + 1; });
+      if (g.wrong >= S().freqN && !g.grad) frequent.push({ p, g });
+    }
+  }
+  const rank = bag => Object.values(bag)
+    .map(b => ({ ...b, score: (b.score || 0) + b.freq * 2 + b.recent, rate: b.problems ? Math.round(b.grad / b.problems * 100) : 0 }))
+    .sort((a, b) => b.score - a.score || b.wrong - a.wrong);
+  frequent.sort((a, b) => b.g.wrong - a.g.wrong);
+  return { types: rank(groups.type), units: rank(groups.unit), reasons: Object.entries(reasons).sort((a, b) => b[1] - a[1]), frequent, untyped };
+}

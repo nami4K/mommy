@@ -242,6 +242,7 @@ function problemTile(p, g, onclick) {
     hasImage(p) ? imgEl(p.img || p.pageImg, 'thumb') : h('div', { class: 'thumb text' }, (p.text || '').slice(0, 40)),
     h('div', { class: 'qmeta' },
       h('b', {}, sourceLabel(p, true)),
+      unitLine(p) ? h('small', {}, unitLine(p)) : null,
       h('div', { class: 'chips' },
         g && g.wrong ? h('span', { class: 'chip oops' }, `${g.wrong}번 틀림`) : null,
         g && g.freq ? h('span', { class: 'chip sun' }, '단골') : null,
@@ -338,6 +339,8 @@ function problemView(p) {
     if (!p.img && p.pageImg && p.src && p.src.num) add(box, h('p', { class: 'page-note' }, `이 쪽의 ${p.src.num}번 문제를 풀어요.`));
   }
   if ((p.text || '').trim()) add(box, h('p', { class: 'ptext' }, p.text));
+  const ul = unitLine(p);
+  add(box, h('p', { class: 'unit-line' }, ul || (p.subject || '')));
   return box;
 }
 function answerBox(p, mine) {
@@ -492,11 +495,11 @@ function momScreen(top) {
   const review = Store.list('problem').filter(p => p.status === 'review' || p.status === 'pending');
   add(top, h('div', { class: 'brand left' }, '엄마 관리'), syncChip(),
     UI.role === 'kid' ? h('button', { class: 'btn small', onclick: () => { UI.mom = false; render(); } }, '닫기') : null);
-  const tabs = [['add', '문제 넣기'], ['review', `확인${review.length ? ' ' + review.length : ''}`], ['list', '문제들'], ['log', '기록'], ['card', '깜짝 카드'], ['set', '설정']];
+  const tabs = [['add', '문제 넣기'], ['review', `확인${review.length ? ' ' + review.length : ''}`], ['list', '문제들'], ['log', '기록'], ['ana', '분석'], ['card', '깜짝 카드'], ['set', '설정']];
   const wrap = h('div', { class: 'pad mom' }, h('div', { class: 'tabs-scroll' }, segmented(tabs, UI.momTab, v => { UI.momTab = v; render(); window.scrollTo(0, 0); }, 'tabs')));
   const exp = expiring();
   if (exp.length && UI.momTab !== 'list') add(wrap, h('button', { class: 'warn-bar', onclick: () => { UI.momTab = 'list'; UI.filter = 'expiring'; render(); } }, `한 달 안에 자동 삭제될 문제 ${exp.length}개 · 보관하려면 눌러요`));
-  const body = { add: momAdd, review: momReview, list: momList, log: momLog, card: momCards, set: momSettings }[UI.momTab]();
+  const body = { add: momAdd, review: momReview, list: momList, log: momLog, ana: momAnalysis, card: momCards, set: momSettings }[UI.momTab]();
   add(wrap, body);
   return wrap;
 }
@@ -512,7 +515,8 @@ function kidSelect(value, onChange) {
 /* ---------- 문제 넣기 ---------- */
 function newDraft() {
   return { kidId: UI.momKid, method: Store.list('book').length ? 'book' : 'photo', bookId: (Store.list('book')[0] || {}).id || '', page: '', nums: '', answers: {},
-    answer: '', answerType: 'auto', solution: '', text: '', subject: '수학', unit: '', reason: '', kidAnswer: '', img: null, solImg: null };
+    answer: '', answerType: 'auto', solution: '', text: '', subject: '수학', unit: '', reason: '', kidAnswer: '', img: null, solImg: null,
+    grade: kidById(UI.momKid) ? gradeOf(kidById(UI.momKid)) : 1, semester: curSemester(), types: [] };
 }
 function momAdd() {
   const d = UI.draft || (UI.draft = newDraft());
@@ -551,27 +555,54 @@ function momAdd() {
   } else if (d.method === 'photo') {
     add(wrap, photoPicker(d, 'img', '문제 사진'),
       h('div', { class: 'row' },
-        h('label', { class: 'field' }, h('span', {}, '과목'), subjectSelect(d)),
+        h('label', { class: 'field' }, h('span', {}, '과목'), subjectSelect(d)), gradeSemFields(d),
         h('label', { class: 'field grow' }, h('span', {}, '단원 (안 써도 돼요)'), bind('unit', { placeholder: '3. 덧셈과 뺄셈' }))),
       answerFields(d, bind));
   } else {
     add(wrap, h('label', { class: 'field' }, h('span', {}, '문제'), h('textarea', { class: 'input', rows: 3, value: d.text, placeholder: '예) 사과가 7개 있었는데 3개를 먹었어요. 몇 개 남았나요?', oninput: e => { d.text = e.target.value; } })),
       photoPicker(d, 'img', '그림이 있으면 사진 (안 넣어도 돼요)'),
       h('div', { class: 'row' },
-        h('label', { class: 'field' }, h('span', {}, '과목'), subjectSelect(d)),
+        h('label', { class: 'field' }, h('span', {}, '과목'), subjectSelect(d)), gradeSemFields(d),
         h('label', { class: 'field grow' }, h('span', {}, '단원'), bind('unit', { placeholder: '안 써도 돼요' }))),
       answerFields(d, bind));
   }
   add(wrap, 
     h('details', { class: 'more' }, h('summary', {}, '더 넣기 (아이가 쓴 답, 엄마 힌트)'),
       h('label', { class: 'field' }, h('span', {}, '아이가 처음에 쓴 답'), bind('kidAnswer')),
-      h('label', { class: 'field' }, h('span', {}, '엄마 힌트 (풀 때 "힌트 보기"로만 보여요)'), bind('reason', { placeholder: '예) 받아올림을 잊지 않았나 확인해 봐' }))),
+      h('label', { class: 'field' }, h('span', {}, '엄마 힌트 (풀 때 "힌트 보기"로만 보여요)'), bind('reason', { placeholder: '예) 받아올림을 잊지 않았나 확인해 봐' })),
+      typePicker(d)),
     h('div', { class: 'row end' },
       h('button', { class: 'btn ghost', onclick: () => { UI.draft = newDraft(); render(); } }, '비우기'),
       h('button', { class: 'btn primary', onclick: () => saveDraft(d) }, '저장하기')));
   return wrap;
 }
 function parseNums(s) { return [...new Set(String(s || '').split(/[,\s]+/).map(x => x.trim()).filter(Boolean))]; }
+function gradeSemFields(d) {
+  return [
+    h('label', { class: 'field' }, h('span', {}, '학년'), h('select', { class: 'input', onchange: e => { d.grade = +e.target.value; } },
+      [1, 2, 3, 4, 5, 6].map(g => h('option', { value: g, selected: g === d.grade }, `${g}학년`)))),
+    h('label', { class: 'field' }, h('span', {}, '학기'), h('select', { class: 'input', onchange: e => { d.semester = +e.target.value; } },
+      [1, 2].map(x => h('option', { value: x, selected: x === d.semester }, `${x}학기`))))];
+}
+/* 유형 고르기: 목록 + 직접 쓰기. Claude가 밤에 채우니 비워 둬도 돼요 */
+function typePicker(obj) {
+  obj.types = typesOf(obj);
+  const box = h('div', { class: 'type-pick' });
+  const draw = () => {
+    const extra = obj.types.filter(t => !ALL_TYPES.includes(t));
+    box.replaceChildren(
+      h('span', { class: 'label' }, '문제 유형 ', h('small', {}, '비워 두면 Claude가 정리할 때 붙여요')),
+      ...TYPE_GROUPS.map(([gname, list]) => h('div', { class: 'type-group' }, h('small', {}, gname),
+        h('div', { class: 'chips' }, list.map(t => h('button', { type: 'button', class: 'chip pickable' + (obj.types.includes(t) ? ' on' : ''),
+          onclick: () => { obj.types = obj.types.includes(t) ? obj.types.filter(x => x !== t) : [...obj.types, t]; draw(); } }, t))))),
+      extra.length ? h('div', { class: 'chips' }, extra.map(t => h('button', { type: 'button', class: 'chip pickable on', onclick: () => { obj.types = obj.types.filter(x => x !== t); draw(); } }, t + ' ×'))) : null,
+      h('input', { class: 'input', placeholder: '목록에 없으면 직접 쓰고 Enter', onkeydown: e => {
+        if (e.key !== 'Enter') return; e.preventDefault();
+        const v = e.target.value.trim(); if (v && !obj.types.includes(v)) { obj.types = [...obj.types, v]; draw(); } } }));
+  };
+  draw();
+  return box;
+}
 function subjectSelect(d) {
   return h('select', { class: 'input', onchange: e => { d.subject = e.target.value; } }, SUBJECTS.map(x => h('option', { value: x, selected: x === d.subject }, x)));
 }
@@ -604,7 +635,7 @@ async function addPhoto(d, key, camera) {
 function saveDraft(d) {
   const kid = kidById(d.kidId);
   if (!kid) { toast('아이를 골라 주세요.'); return; }
-  const base = { kidId: kid.id, createdAt: Date.now(), createdBy: 'mom', answerType: d.answerType, reason: d.reason.trim(), kidAnswer: d.kidAnswer.trim(), solImg: d.solImg };
+  const base = { kidId: kid.id, createdAt: Date.now(), createdBy: 'mom', answerType: d.answerType, reason: d.reason.trim(), kidAnswer: d.kidAnswer.trim(), solImg: d.solImg, types: typesOf(d) };
   const made = [];
   if (d.method === 'book') {
     const book = Store.get('book', d.bookId);
@@ -618,10 +649,10 @@ function saveDraft(d) {
     }
   } else if (d.method === 'photo') {
     if (!d.img) { toast('문제 사진을 넣어 주세요.'); return; }
-    made.push({ ...base, id: 'p' + uid(), src: { type: 'photo' }, subject: d.subject, unit: d.unit.trim(), img: d.img, answer: d.answer.trim(), solution: d.solution.trim() });
+    made.push({ ...base, id: 'p' + uid(), src: { type: 'photo' }, subject: d.subject, grade: d.grade, semester: d.semester, unit: d.unit.trim(), img: d.img, answer: d.answer.trim(), solution: d.solution.trim() });
   } else {
     if (!d.text.trim()) { toast('문제를 써 주세요.'); return; }
-    made.push({ ...base, id: 'p' + uid(), src: { type: 'text' }, subject: d.subject, unit: d.unit.trim(), text: d.text.trim(), img: d.img, answer: d.answer.trim(), solution: d.solution.trim() });
+    made.push({ ...base, id: 'p' + uid(), src: { type: 'text' }, subject: d.subject, grade: d.grade, semester: d.semester, unit: d.unit.trim(), text: d.text.trim(), img: d.img, answer: d.answer.trim(), solution: d.solution.trim() });
   }
   let ready = 0;
   for (const p of made) {
@@ -713,7 +744,9 @@ function editProblem(orig) {
     typeSeg,
     field('정답', 'answer', { placeholder: '여러 칸: 3, 5 · 정답이 여럿: 5개|다섯 개' }),
     h('label', { class: 'field' }, h('span', {}, '풀이'), h('textarea', { class: 'input', rows: 3, value: p.solution || '', oninput: e => { p.solution = e.target.value; } })),
-    field('단원', 'unit'),
+    h('div', { class: 'row' }, (() => { const gs = gradeSem(p); p.grade = p.grade || gs.g || 1; p.semester = p.semester || gs.s || curSemester(); return gradeSemFields(p); })(),
+      h('label', { class: 'field grow' }, h('span', {}, '단원'), h('input', { class: 'input', value: p.unit || '', oninput: e => { p.unit = e.target.value; } }))),
+    typePicker(p),
     field('엄마 힌트', 'reason'),
     p.kidAnswer ? h('p', { class: 'note' }, `아이가 처음 쓴 답: ${p.kidAnswer}`) : null,
     g && (g.reasonTags || g.reasonText) ? h('p', { class: 'note' }, `아이가 고른 틀린 이유: ${[...(g.reasonTags || []), g.reasonText].filter(Boolean).join(', ')}`) : null,
@@ -725,7 +758,7 @@ function editProblem(orig) {
         h('button', { class: 'btn ghost', onclick: close }, '닫기'),
         h('button', { class: 'btn primary', onclick: () => {
           const book = p.src.bookId ? Store.get('book', p.src.bookId) : null;
-          if (book) { p.src.type = 'book'; p.subject = p.subject || book.subject; p.grade = book.grade; p.semester = book.semester; if (!p.unit) p.unit = unitFor(book, p.src.page);
+          if (book) { p.src.type = 'book'; p.subject = p.subject || book.subject; p.grade = p.grade || book.grade; p.semester = p.semester || book.semester; if (!p.unit) p.unit = unitFor(book, p.src.page);
             if (!p.img && book.pages && book.pages[p.src.page]) p.pageImg = book.pages[p.src.page]; }
           if (p.createdBy === 'kid') p.approved = true;
           p.answer = (p.answer || '').trim(); p.solution = (p.solution || '').trim();
@@ -794,6 +827,50 @@ function momLog() {
       !x.ok && (g.reasonTags || []).length ? h('small', {}, g.reasonTags.join(', ')) : null))) : h('p', { class: 'note' }, '아직 푼 기록이 없어요.'));
 }
 const tile = (label, v) => h('div', { class: 'tile' }, h('small', {}, label), h('b', {}, v));
+
+/* ---------- 분석 (엄마만 봐요) ---------- */
+function momAnalysis() {
+  const kid = kidById(UI.momKid);
+  if (!kid) return h('p', {}, '아이가 없어요.');
+  const a = analysis(kid.id);
+  const rep = Store.get('report', kid.id);
+  const wrap = h('div', { class: 'stack' }, kidSelect(kid.id, v => { UI.momKid = v; render(); }));
+  add(wrap, h('section', { class: 'card memo' },
+    h('h3', {}, 'Claude 분석 메모'),
+    rep && rep.text ? [h('p', { class: 'memo-text' }, rep.text), h('small', { class: 'note' }, `${shortDate(ymdOf(rep.at))}에 정리`)]
+      : h('p', { class: 'note' }, '일주일에 한 번, 밤 정리 때 Claude가 틀린 문제들을 보고 어떤 유형에서 어떻게 틀리는지, 비슷한 문제를 어떻게 연습하면 좋을지 적어 드려요.')));
+  const block = (title, rows, empty) => h('section', { class: 'card' }, h('h3', {}, title),
+    rows.length ? weakBars(rows.slice(0, 8)) : h('p', { class: 'note' }, empty));
+  add(wrap,
+    block('약한 유형', a.types, a.untyped ? `유형이 아직 없는 문제가 ${a.untyped}개 있어요. 밤 정리 때 Claude가 붙여요.` : '아직 분석할 문제가 없어요.'),
+    a.types.length && a.untyped ? h('p', { class: 'note' }, `유형이 아직 없는 문제 ${a.untyped}개는 밤 정리 뒤에 더해져요.`) : null,
+    block('약한 단원', a.units, '학년-학기·단원이 있는 문제가 아직 없어요.'));
+  add(wrap, h('section', { class: 'card' }, h('h3', {}, '자주 틀리는 문제'),
+    a.frequent.length ? a.frequent.slice(0, 12).map(({ p, g }) => h('button', { class: 'list-row', onclick: () => editProblem(p) },
+      imgEl(p.img || p.pageImg, 'mini-thumb'),
+      h('div', { class: 'grow' }, h('b', {}, sourceLabel(p, true)), h('small', {}, [unitLine(p), typesOf(p).join(', ')].filter(Boolean).join(' · '))),
+      h('span', { class: 'chip oops' }, `${g.wrong}번`))) : h('p', { class: 'note' }, `${S().freqN}번 이상 틀린 문제가 아직 없어요.`)));
+  if (a.reasons.length) add(wrap, h('section', { class: 'card' }, h('h3', {}, '아이가 고른 틀린 이유'),
+    h('div', { class: 'chips big' }, a.reasons.map(([t, n]) => h('span', { class: 'chip' }, `${t} ${n}`)))));
+  add(wrap, h('p', { class: 'note' }, '약한 정도 = 아직 졸업하지 못한 문제의 틀린 횟수 + 단골 문제마다 2 + 최근 30일에 틀린 횟수. 아이 화면에는 약한 곳을 보여 주지 않고 "강해진 곳"만 보여 줘요.'));
+  return wrap;
+}
+function weakBars(rows) {
+  const max = Math.max(...rows.map(r => r.score), 1);
+  return h('div', { class: 'weak' }, rows.map(r => h('button', { class: 'weak-row', onclick: () => weakList(r) },
+    h('div', { class: 'weak-top' }, h('b', {}, r.key), h('span', { class: 'weak-score' }, r.score)),
+    h('div', { class: 'bar' }, h('i', { class: 'now', style: { width: (r.score / max * 100) + '%' } })),
+    h('small', {}, `남은 문제 ${r.open} · 틀린 횟수 ${r.wrong} · 단골 ${r.freq} · 졸업 ${r.rate}%${r.recent ? ` · 최근 30일 ${r.recent}번 틀림` : ''}`))));
+}
+function weakList(r) {
+  const probs = r.ids.map(id => Store.get('problem', id)).filter(Boolean);
+  modal(close => h('div', { class: 'stack' }, h('h3', {}, r.key),
+    probs.map(p => { const g = prog(p.id); return h('button', { class: 'list-row', onclick: () => { close(); editProblem(p); } },
+      imgEl(p.img || p.pageImg, 'mini-thumb'),
+      h('div', { class: 'grow' }, h('b', {}, sourceLabel(p, true)), h('small', {}, unitLine(p))),
+      g ? h('span', { class: 'chip ' + (g.grad ? 'ok' : 'oops') }, g.grad ? '졸업' : `${g.wrong}번`) : null); }),
+    h('button', { class: 'btn wide', onclick: close }, '닫기')), { wide: true });
+}
 
 /* ---------- 깜짝 카드 ---------- */
 function momCards() {

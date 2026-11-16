@@ -276,3 +276,21 @@ details.more[open] > summary { margin-bottom: 8px; }
   h1 { font-size: 23px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* 학년-학기·단원, 유형, 분석 */
+.unit-line { margin: 8px 4px 0; color: var(--sub); font-size: 15px; }
+.qmeta small { color: var(--sub); font-size: 13px; }
+.type-pick { display: flex; flex-direction: column; gap: 8px; }
+.type-group { display: flex; flex-direction: column; gap: 4px; }
+.type-group > small { color: var(--sub); font-size: 13px; }
+.type-pick .chip.pickable { font-size: 14px; padding: 5px 10px; }
+.weak { display: flex; flex-direction: column; gap: 12px; }
+.weak-row { display: flex; flex-direction: column; gap: 4px; text-align: left; padding: 6px 4px; border-radius: 12px; }
+.weak-row:active { background: var(--pri2); }
+.weak-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.weak-top b { font-family: var(--display); font-weight: 400; font-size: 18px; }
+.weak-score { font-family: var(--display); color: var(--oops-ink); font-variant-numeric: tabular-nums; }
+.weak .bar i.now { background: var(--oops); }
+.weak-row small { color: var(--sub); }
+.memo { background: var(--sun2); }
+.memo-text { white-space: pre-wrap; margin: 4px 0 8px; line-height: 1.7; }
