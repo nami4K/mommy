@@ -128,8 +128,17 @@ function svgPet(kind) {
   }
 }
 
+/* 받은 코드(결과·백업)에 든 아바타 값도 앱이 아는 아이템만 쓰도록 걸러요 */
+function cleanAvatar(a) {
+  const out = { ...AV_DEFAULT };
+  if (a && typeof a === 'object') for (const k of Object.keys(AV_DEFAULT)) {
+    const v = a[k];
+    if (typeof v === 'string' && CATALOG.some(it => it.cat === k && it.id === v)) out[k] = v;
+  }
+  return out;
+}
 function avatarSVG(a, cls = 'avatar') {
-  a = Object.assign({}, AV_DEFAULT, a || {});
+  a = cleanAvatar(a);
   const skin = AV.skin[a.skin] || AV.skin.light;
   const hc = AV.hairColor[a.hairColor] || AV.hairColor.brown;
   const oc = AV.outfitColor[a.outfitColor] || AV.outfitColor.pink;
