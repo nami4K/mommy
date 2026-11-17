@@ -4,6 +4,6 @@
  * 비워 두면 엄마 설정 화면에서 넣을 수 있어요.
  */
 window.WN_CONFIG = {
-  supabaseUrl: 'https://wrkrljsycovbpdosvilf.supabase.co',
-  supabaseKey: 'sb_publishable_G7jXGCq92C1PtEdLaRUU8A_jfKnLw4y',
+  supabaseUrl: 'https://nybtgfqfrxiuqizyqbpc.supabase.co',
+  supabaseKey: 'sb_publishable_d_fqNTct1m32K4nVbbhE5A_E1NE0-9n',
 };

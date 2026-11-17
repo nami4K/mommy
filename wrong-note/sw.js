@@ -1,5 +1,5 @@
 /* 앱 화면 파일을 저장해 두어 인터넷이 없어도 열리게 합니다. 가족 저장 공간(supabase.co)은 늘 인터넷으로. */
-const VERSION = 'dasibom-v3';
+const VERSION = 'dasibom-v4';
 const SHELL = ['./', 'index.html', 'style.css', 'config.js', 'js/util.js', 'js/store.js', 'js/logic.js', 'js/photo.js', 'js/app.js', 'js/vendor/qrcode.js',
   'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
