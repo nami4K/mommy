@@ -294,3 +294,4 @@ details.more[open] > summary { margin-bottom: 8px; }
 .weak-row small { color: var(--sub); }
 .memo { background: var(--sun2); }
 .memo-text { white-space: pre-wrap; margin: 4px 0 8px; line-height: 1.7; }
+.page-num .big-num-input { font-size: 24px; font-family: var(--display); text-align: center; min-height: 58px; }

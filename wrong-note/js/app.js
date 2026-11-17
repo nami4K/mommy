@@ -489,6 +489,7 @@ async function kidUpload(kid, camera) {
 /* ================= 엄마 화면 ================= */
 let purgedToday = '';
 function momScreen(top) {
+  ensurePresetBooks();
   if (purgedToday !== ymd()) { purgedToday = ymd(); purgeOld().then(n => { if (n) toast(`2년 지난 문제 ${n}개를 정리했어요.`); }); }
   const s = S();
   if (!UI.momKid || !kidById(UI.momKid)) UI.momKid = (s.kids[0] || {}).id || null;
@@ -514,7 +515,7 @@ function kidSelect(value, onChange) {
 
 /* ---------- 문제 넣기 ---------- */
 function newDraft() {
-  return { kidId: UI.momKid, method: Store.list('book').length ? 'book' : 'photo', bookId: (Store.list('book')[0] || {}).id || '', page: '', nums: '', answers: {},
+  return { kidId: UI.momKid, method: 'book', bookId: defaultBookFor(UI.momKid), page: '', nums: '', answers: {},
     answer: '', answerType: 'auto', solution: '', text: '', subject: '수학', unit: '', reason: '', kidAnswer: '', img: null, solImg: null,
     grade: kidById(UI.momKid) ? gradeOf(kidById(UI.momKid)) : 1, semester: curSemester(), types: [] };
 }
@@ -524,33 +525,38 @@ function momAdd() {
   const books = Store.list('book');
   const wrap = h('div', { class: 'stack' });
   const bind = (key, attrs = {}) => h('input', { class: 'input', value: d[key] || '', ...attrs, oninput: e => { d[key] = e.target.value; } });
-  add(wrap, h('div', { class: 'label' }, '누구 문제예요?'), kidSelect(d.kidId, v => { d.kidId = v; UI.momKid = v; render(); }),
+  add(wrap, h('div', { class: 'label' }, '누구 문제예요?'), kidSelect(d.kidId, v => { d.kidId = v; UI.momKid = v; d.bookId = defaultBookFor(v); render(); }),
     h('div', { class: 'label' }, '어떻게 넣을까요?'),
     segmented([['book', '문제집 쪽·번호'], ['photo', '사진'], ['text', '직접 쓰기']], d.method, v => { d.method = v; render(); }));
 
   if (d.method === 'book') {
+    if (!Store.get('book', d.bookId)) d.bookId = defaultBookFor(d.kidId);
     add(wrap, h('div', { class: 'row' },
-      books.length ? h('select', { class: 'input', 'aria-label': '문제집', onchange: e => { d.bookId = e.target.value; render(); } },
-        books.map(b => h('option', { value: b.id, selected: b.id === d.bookId }, b.title))) : h('p', { class: 'note grow' }, '아직 문제집이 없어요.'),
-      h('button', { class: 'btn small', onclick: () => bookForm(null, b => { d.bookId = b.id; render(); }) }, '+ 문제집')));
+      books.length ? h('label', { class: 'field grow' }, h('span', {}, '문제집'),
+        h('select', { class: 'input', onchange: e => { d.bookId = e.target.value; render(); } },
+          books.slice().sort((a, b) => a.title.localeCompare(b.title)).map(b => h('option', { value: b.id, selected: b.id === d.bookId }, b.title))))
+        : h('p', { class: 'note grow' }, '아직 문제집이 없어요.'),
+      h('button', { class: 'btn small ghost', onclick: () => bookForm(null, b => { d.bookId = b.id; render(); }) }, '+ 다른 문제집')));
     const book = Store.get('book', d.bookId);
     if (book) {
       const nums = parseNums(d.nums);
       const page = parseInt(d.page, 10);
       const pageImg = book.pages && book.pages[page];
-      add(wrap, h('div', { class: 'row' },
-        h('label', { class: 'field' }, h('span', {}, '쪽'), bind('page', { inputmode: 'numeric', placeholder: '23', onchange: () => render() })),
-        h('label', { class: 'field grow' }, h('span', {}, '번호 (여러 개는 쉼표로)'), bind('nums', { inputmode: 'text', placeholder: '4, 7, 9', onchange: () => render() }))),
-        page ? h('p', { class: 'note' }, [book.title, `${book.grade}-${book.semester}`, unitFor(book, page) || '단원 모름'].join(' · '),
-          pageImg ? ' · 쪽 그림 있음' : ' · 쪽 그림은 Claude가 정리할 때 만들어요') : null);
+      add(wrap, h('div', { class: 'row page-num' },
+        h('label', { class: 'field' }, h('span', {}, '쪽'), bind('page', { inputmode: 'numeric', placeholder: '23', class: 'input big-num-input', onchange: () => render() })),
+        h('label', { class: 'field grow' }, h('span', {}, '번호 (여러 개는 쉼표로)'), bind('nums', { inputmode: 'text', placeholder: '4, 7, 9', class: 'input big-num-input', onchange: () => render() }))),
+        page ? h('p', { class: 'note' }, `${book.title} · ${page}쪽 · ${unitFor(book, page) || '단원은 Claude가 목차에서 채워요'}`) : null,
+        h('p', { class: 'note' }, '쪽과 번호만 넣으면 돼요. 문제 그림, 정답, 풀이, 단원은 밤에 Claude가 문제집에서 찾아 채워요.'));
+      const ans = h('details', { class: 'more' }, h('summary', {}, '정답·풀이 직접 넣기 (안 넣어도 돼요)'));
       if (nums.length > 1) {
-        add(wrap, h('div', { class: 'label' }, '정답 ', h('small', {}, '모르면 비워 두세요. Claude가 해설에서 찾아 채워요.')),
-          h('div', { class: 'ans-grid' }, nums.map(n => h('label', { class: 'field' }, h('span', {}, `${n}번`),
-            h('input', { class: 'input', value: d.answers[n] || '', oninput: e => { d.answers[n] = e.target.value; } })))));
+        add(ans, h('div', { class: 'ans-grid' }, nums.map(n => h('label', { class: 'field' }, h('span', {}, `${n}번 정답`),
+          h('input', { class: 'input', value: d.answers[n] || '', oninput: e => { d.answers[n] = e.target.value; } })))));
       } else {
-        if (!pageImg) add(wrap, photoPicker(d, 'img', '문제 사진 (없으면 Claude가 PDF에서 잘라 넣어요)'));
-        add(wrap, answerFields(d, bind));
+        if (!pageImg) add(ans, photoPicker(d, 'img', '문제 사진 (없으면 Claude가 PDF에서 잘라 넣어요)'));
+        add(ans, answerFields(d, bind));
       }
+      if (d.answer || d.solution || d.img || Object.values(d.answers).some(Boolean)) ans.open = true;
+      add(wrap, ans);
     }
   } else if (d.method === 'photo') {
     add(wrap, photoPicker(d, 'img', '문제 사진'),
@@ -575,6 +581,26 @@ function momAdd() {
       h('button', { class: 'btn ghost', onclick: () => { UI.draft = newDraft(); render(); } }, '비우기'),
       h('button', { class: 'btn primary', onclick: () => saveDraft(d) }, '저장하기')));
   return wrap;
+}
+/* 집에 있는 문제집. 아이디를 고정해 두어 여러 기기에서 넣어도 하나만 생겨요. 단원·쪽 그림은 Claude가 채워요. */
+const PRESET_BOOKS = [
+  { id: 'b-wsc-1-1', title: '왕수학 최상위 1-1', subject: '수학', grade: 1, semester: 1 },
+  { id: 'b-wsc-1-2', title: '왕수학 최상위 1-2', subject: '수학', grade: 1, semester: 2 },
+  { id: 'b-wsc-2-1', title: '왕수학 최상위 2-1', subject: '수학', grade: 2, semester: 1 },
+  { id: 'b-wsc-2-2', title: '왕수학 최상위 2-2', subject: '수학', grade: 2, semester: 2 },
+];
+function ensurePresetBooks() {
+  if (!S().kids.length) return;
+  for (const b of PRESET_BOOKS) if (!Store.get('book', b.id)) Store.put('book', b.id, { ...b, units: [], pages: {} }, { silent: true });
+}
+/* 그 아이의 지금 학년·학기 문제집을 먼저 고릅니다 */
+function defaultBookFor(kidId) {
+  const books = Store.list('book');
+  const kid = kidById(kidId);
+  if (!kid) return (books[0] || {}).id || '';
+  const g = gradeOf(kid), sem = curSemester();
+  const hit = books.find(b => b.grade === g && b.semester === sem) || books.find(b => b.grade === g) || books[0];
+  return hit ? hit.id : '';
 }
 function parseNums(s) { return [...new Set(String(s || '').split(/[,\s]+/).map(x => x.trim()).filter(Boolean))]; }
 function gradeSemFields(d) {
@@ -679,7 +705,7 @@ function bookForm(book, onSaved) {
       h('label', { class: 'field' }, h('span', {}, '과목'), h('select', { class: 'input', onchange: e => { b.subject = e.target.value; } }, SUBJECTS.map(x => h('option', { value: x, selected: x === b.subject }, x)))),
       h('label', { class: 'field' }, h('span', {}, '학년'), h('select', { class: 'input', onchange: e => { b.grade = +e.target.value; } }, [1, 2, 3, 4, 5, 6].map(g => h('option', { value: g, selected: g === b.grade }, `${g}학년`)))),
       h('label', { class: 'field' }, h('span', {}, '학기'), h('select', { class: 'input', onchange: e => { b.semester = +e.target.value; } }, [1, 2].map(g => h('option', { value: g, selected: g === b.semester }, `${g}학기`))))),
-    h('label', { class: 'field' }, h('span', {}, '단원과 쪽 (한 줄에 하나, 안 써도 돼요. Claude가 목차에서 채울 수 있어요)'),
+    h('details', { class: 'more', open: !!(b.units && b.units.length) }, h('summary', {}, '단원별 쪽 범위 (안 써도 돼요. Claude가 목차에서 채워요)'),
       h('textarea', { class: 'input mono', rows: 5, value: utext, placeholder: '1. 네 자리 수 | 6-27\n2. 곱셈구구 | 28-51', oninput: e => { utext = e.target.value; } })),
     err,
     h('div', { class: 'row end' },
