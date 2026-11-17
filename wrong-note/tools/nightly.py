@@ -203,7 +203,8 @@ def cmd_crop(pid, book_id, pdf, x0, y0, x1, y1):
 
 def new_progress(p):
     created = datetime.datetime.fromtimestamp((p.get('createdAt') or time.time() * 1000) / 1000)
-    due = (created + datetime.timedelta(days=1)).strftime('%Y-%m-%d')
+    settings = get_doc('settings', 'main') or {}
+    due = (created + datetime.timedelta(days=1 if settings.get('newDue') else 0)).strftime('%Y-%m-%d')
     return {'kidId': p.get('kidId'), 'wrong': 1, 'streak': 0, 'due': due, 'freq': False, 'grad': False, 'hist': []}
 
 

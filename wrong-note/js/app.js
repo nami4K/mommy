@@ -697,7 +697,7 @@ function saveDraft(d) {
   const keep = { kidId: d.kidId, method: d.method, bookId: d.bookId, page: d.page };
   UI.draft = { ...newDraft(), ...keep };
   Store.emit();
-  toast(ready === made.length ? `${kid.name}에게 ${made.length}문제를 넣었어요. 내일부터 다시 풀기에 나와요.`
+  toast(ready === made.length ? `${kid.name}에게 ${made.length}문제를 넣었어요. ${S().newDue ? '내일부터' : '오늘부터'} 다시 풀기에 나와요.`
     : `${made.length}문제를 넣었어요. ${made.length - ready}문제는 Claude가 정답·그림을 채우면 나와요.`, 4000);
 }
 
@@ -956,6 +956,8 @@ function momSettings() {
     num('단골 문제 기준 (틀린 횟수)', 'freqN', 2, 10),
     h('label', { class: 'set-row' }, h('span', {}, '단골 문제 복습 간격(일)', h('small', {}, '다시 맞힌 뒤 이 간격으로 다시 나오고, 모두 맞히면 졸업')),
       h('input', { class: 'input narrow', value: s.intervals.join(', '), onchange: e => { const v = e.target.value.split(/[,\s]+/).map(Number).filter(n => n > 0 && n < 400); if (v.length) saveSettings({ intervals: v }); } })),
+    h('div', { class: 'set-row' }, h('span', {}, '새로 넣은 문제', h('small', {}, '틀려서 다시 푼 문제는 항상 다음 날 나와요')),
+      segmented([[0, '넣은 날부터'], [1, '다음 날부터']], s.newDue ? 1 : 0, v => saveSettings({ newDue: v }), 'small')),
     h('div', { class: 'set-row' }, h('span', {}, '학년이 바뀌는 날'),
       segmented([[3, '3월 1일'], [1, '1월 1일']], s.changeMonth, v => saveSettings({ changeMonth: v }), 'small')),
     h('div', { class: 'set-row' }, h('span', {}, '자동 삭제', h('small', {}, '등록하고 이만큼 지난 문제. 한 달 전에 알려 드려요')),

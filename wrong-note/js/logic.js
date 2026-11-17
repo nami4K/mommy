@@ -4,6 +4,7 @@ const DEFAULTS = {
   kids: [],
   changeMonth: 3,          // 학년이 바뀌는 달 (3 = 3월 1일, 1 = 1월 1일)
   dailyMax: 5,             // 하루에 다시 풀 문제 수
+  newDue: 0,               // 새로 넣은 문제가 나오는 날: 0 = 넣은 날부터, 1 = 다음 날부터
   freqN: 2,                // 이만큼 틀리면 '단골 문제'
   intervals: [3, 7, 14, 30], // 단골 문제: 다시 맞힌 뒤 복습 간격(일). 모두 맞히면 졸업
   retentionDays: 730,      // 등록하고 이만큼 지나면 자동 삭제(2년)
@@ -55,7 +56,7 @@ function statusFor(p) {
   return content && answer ? 'ready' : 'pending';
 }
 function newProgress(p) {
-  return { kidId: p.kidId, wrong: 1, streak: 0, due: addDays(ymdOf(p.createdAt || Date.now()), 1), freq: 1 >= S().freqN, grad: false, hist: [] };
+  return { kidId: p.kidId, wrong: 1, streak: 0, due: addDays(ymdOf(p.createdAt || Date.now()), S().newDue ? 1 : 0), freq: 1 >= S().freqN, grad: false, hist: [] };
 }
 /* 진도가 아직 없으면 기본값만 돌려줍니다(저장은 채점할 때). 다른 기기의 기록을 덮어쓰지 않으려는 것 */
 function ensureProg(p) {
