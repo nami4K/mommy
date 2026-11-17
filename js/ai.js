@@ -88,12 +88,14 @@ const EXTRACT_SCHEMA = {
     items: {
       type: 'array',
       items: {
-        type: 'object', additionalProperties: false, required: ['term', 'meaning', 'lang', 'example'],
+        type: 'object', additionalProperties: false, required: ['term', 'meaning', 'lang', 'example', 'handwritten', 'marked'],
         properties: {
           term: { type: 'string', description: '외울 단어 그대로' },
           meaning: { type: 'string', description: '종이에 적힌 한국어 뜻. 없으면 빈 문자열' },
           lang: { type: 'string', enum: ['en', 'ko', 'hanja'] },
           example: { type: 'string', description: '종이에 있는 예문. 없으면 빈 문자열' },
+          handwritten: { type: 'boolean', description: '뜻(또는 단어)이 인쇄가 아니라 아이 손글씨에서만 나왔으면 true' },
+          marked: { type: 'boolean', description: '아이가 밑줄·동그라미·별·체크·형광펜으로 표시한 단어면 true' },
         },
       },
     },
@@ -105,7 +107,12 @@ Extract every vocabulary entry on the page, in reading order.
 - lang: "en" for English terms, "ko" for Korean words learned for their meaning (국어 어휘), "hanja" for Chinese characters or Hanja words.
 - meaning: the Korean meaning written on the page next to the term. For Hanja, the 훈음 as written (e.g. "배울 학"). If the page shows no meaning, return "" - never invent one.
 - example: an example sentence printed for that entry, else "".
-Skip page titles, numbers, instructions, answer blanks, and decorations. If handwriting is unclear, give your best reading of what is written rather than guessing a different word.`;
+Skip page titles, numbers, instructions, answer blanks, and decorations. If handwriting is unclear, give your best reading of what is written rather than guessing a different word.
+Pages are often marked up by the child who studies them:
+- Underlines, highlights, circles, check marks, stars and doodles are not entries. Read the text under or around them normally, and set marked: true for an entry the child underlined, circled, starred, checked or highlighted. Otherwise marked: false.
+- Prefer printed text. When the page prints a meaning, use the printed meaning even if the child wrote a different one next to it.
+- When the only meaning is the child's handwriting (for example filled into a blank), use it and set handwritten: true, because it may be wrong. Also set handwritten: true when the term itself appears only in handwriting. Otherwise handwritten: false.
+- A word the child copied several times for practice is one entry. Ignore margin notes, scribbles, answers to exercises, and crossed-out text that are not vocabulary entries.`;
 
 async function fileToJpegBase64(file, maxSide = 1568) {
   const url = URL.createObjectURL(file);

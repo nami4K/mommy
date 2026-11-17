@@ -366,7 +366,7 @@ details.more summary { cursor: pointer; color: var(--lav); font-family: var(--ro
 .big-choice small { color: var(--sub); font-size: 12px; }
 .ocr-status { margin-top: 10px; }
 pre.raw { white-space: pre-wrap; font-size: 11px; max-height: 160px; overflow: auto; background: #fff; padding: 8px; border-radius: 10px; }
-.rev-row { display: grid; grid-template-columns: 24px 1fr 1.3fr 78px; gap: 6px; align-items: center; margin-bottom: 6px; }
+.rev-row { display: grid; grid-template-columns: 30px 1fr 1.3fr 78px; gap: 6px; align-items: center; margin-bottom: 6px; }
 .rev-row.off { opacity: .45; }
 .rev-row input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--pink); }
 .input.sm { padding: 8px 10px; font-size: 15px; border-radius: 12px; min-width: 0; }
@@ -415,3 +415,5 @@ mark.fix { background: var(--green2); color: #1d8a62; font-weight: 600; }
 .usage-box .input.sm { max-width: 90px; }
 .usage-box > b, .usage-box > small { display: block; }
 .usage-box .set-row { margin-top: 8px; }
+
+.rev-mark { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 12px; line-height: 1; }

@@ -164,7 +164,7 @@ function openNewSet() {
   const paste = h('textarea', { class: 'input', rows: 6, placeholder: '단어 목록을 붙여 넣어요. 모양은 자유롭게:\napple 사과\nbrave - 용감한\n學 배울 학\n성실 : 정성스럽고 참됨' });
   openSheet('📚 새 세트 만들기',
     h('div', { class: 'big-choices' },
-      h('button', { class: 'big-choice', onclick: () => file.click() }, h('span', {}, '📷'), h('b', {}, '단어장 사진'), h('small', {}, aiReady() ? 'AI가 읽고 영어·국어·한자로 나눠요' : '무료 글자 인식 (AI를 켜면 더 정확해요)')),
+      h('button', { class: 'big-choice', onclick: () => file.click() }, h('span', {}, '📷'), h('b', {}, '단어장 사진'), h('small', {}, aiReady() ? 'AI가 읽고 영어·국어·한자로 나눠요. 아이가 필기한 쪽도 괜찮아요' : '무료 글자 인식: 손글씨·밑줄이 많으면 잘 못 읽어요 (AI를 켜면 더 정확해요)')),
       h('button', { class: 'big-choice', onclick: () => openReview([], '', '') }, h('span', {}, '✏️'), h('b', {}, '직접 적기'), h('small', {}, '한 줄씩 넣어요'))),
     file, aiReady() ? null : h('label', { class: 'toggle' }, hanjaOcr, h('span', {}, '사진에 한자가 있어요 (인식 파일이 더 커요)')),
     status,
@@ -234,9 +234,10 @@ function openReview(items, title, note) {
       groups.append(h('h4', { class: 'label' }, h('span', { class: 'tag t-' + l }, LANG_LABEL[l]), ` ${rs.filter(r => r.on && r.term).length}개`));
       for (const r of rs) {
         const mean = h('input', { class: 'input sm', value: r.meaning, placeholder: r.lang === 'hanja' ? '훈음 (예: 배울 학)' : '뜻', oninput: e => { r.meaning = e.target.value; r.auto = false; } });
-        if (r.auto) mean.classList.add('auto');
+        if (r.auto || r.handwritten) mean.classList.add('auto');
+        if (r.handwritten) mean.title = '아이 손글씨에서 읽은 뜻이에요. 맞는지 확인해 주세요';
         groups.append(h('div', { class: 'rev-row' + (r.on ? '' : ' off') },
-          h('input', { type: 'checkbox', checked: r.on, onchange: e => { r.on = e.target.checked; draw(); } }),
+          h('div', { class: 'rev-mark' }, h('input', { type: 'checkbox', checked: r.on, onchange: e => { r.on = e.target.checked; draw(); } }), r.marked ? h('span', { title: '아이가 표시한 단어' }, '✏️') : null),
           h('input', { class: 'input sm term-in', value: r.term, placeholder: '단어', oninput: e => { r.term = e.target.value; }, onchange: e => { const nl = Dict.detect(e.target.value); if (nl !== r.lang) { r.lang = nl; draw(); } } }),
           mean,
           h('select', { class: 'input sm lang-sel', onchange: e => { r.lang = e.target.value; draw(); } }, ['en', 'ko', 'hanja'].map(x => h('option', { value: x, selected: x === r.lang ? true : null }, LANG_LABEL[x])))));
@@ -252,7 +253,9 @@ function openReview(items, title, note) {
     note ? h('p', { class: 'note' }, note, ' 체크를 풀면 빠져요. 언어가 틀리면 오른쪽에서 바꿔요.') : null,
     h('h4', { class: 'label' }, '세트 이름'), name,
     groups,
-    h('div', { class: 'row-tools' }, h('button', { class: 'btn small', onclick: () => { rows.push({ term: '', meaning: '', lang: 'en', example: '', on: true }); draw(); } }, '+ 줄 추가'), fillBtn),
+    rows.some(r => r.handwritten || r.marked) ? h('p', { class: 'note' }, '노란 칸 = 아이 손글씨나 사전에서 채운 뜻이라 꼭 확인해 주세요. ✏️ = 아이가 밑줄·동그라미 친 단어예요.') : null,
+    h('div', { class: 'row-tools' }, h('button', { class: 'btn small', onclick: () => { rows.push({ term: '', meaning: '', lang: 'en', example: '', on: true }); draw(); } }, '+ 줄 추가'), fillBtn,
+      rows.some(r => r.marked) ? h('button', { class: 'btn small', onclick: () => { rows.forEach(r => { r.on = !!r.marked; }); draw(); toast('✏️ 아이가 표시한 단어만 남겼어요'); } }, '✏️ 표시한 단어만') : null),
     h('label', { class: 'toggle' }, split, h('span', {}, '과목이 섞여 있으면 영어·국어·한자 세트로 나눠 저장')),
     h('h4', { class: 'label' }, '이 기기에서 공부할 사람'), who,
     h('button', {
