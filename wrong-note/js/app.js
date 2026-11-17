@@ -584,14 +584,22 @@ function momAdd() {
 }
 /* 집에 있는 문제집. 아이디를 고정해 두어 여러 기기에서 넣어도 하나만 생겨요. 단원·쪽 그림은 Claude가 채워요. */
 const PRESET_BOOKS = [
-  { id: 'b-wsc-1-1', title: '왕수학 최상위 1-1', subject: '수학', grade: 1, semester: 1 },
-  { id: 'b-wsc-1-2', title: '왕수학 최상위 1-2', subject: '수학', grade: 1, semester: 2 },
-  { id: 'b-wsc-2-1', title: '왕수학 최상위 2-1', subject: '수학', grade: 2, semester: 1 },
-  { id: 'b-wsc-2-2', title: '왕수학 최상위 2-2', subject: '수학', grade: 2, semester: 2 },
+  { id: 'b-wsc-1-1', title: '왕수학 최상위 1-1', subject: '수학', grade: 1, semester: 1,
+    units: [{ name: '1. 9까지의 수', from: 5, to: 30 }, { name: '2. 여러 가지 모양', from: 31, to: 50 }, { name: '3. 덧셈과 뺄셈', from: 51, to: 76 }, { name: '4. 비교하기', from: 77, to: 100 }, { name: '5. 50까지의 수', from: 101, to: 128 }] },
+  { id: 'b-wsc-1-2', title: '왕수학 최상위 1-2', subject: '수학', grade: 1, semester: 2,
+    units: [{ name: '1. 100까지의 수', from: 5, to: 30 }, { name: '2. 덧셈과 뺄셈(1)', from: 31, to: 52 }, { name: '3. 모양과 시각', from: 53, to: 76 }, { name: '4. 덧셈과 뺄셈(2)', from: 77, to: 102 }, { name: '5. 규칙 찾기', from: 103, to: 126 }, { name: '6. 덧셈과 뺄셈(3)', from: 127, to: 150 }] },
+  { id: 'b-wsc-2-1', title: '왕수학 최상위 2-1', subject: '수학', grade: 2, semester: 1,
+    units: [{ name: '1. 세 자리 수', from: 5, to: 26 }, { name: '2. 여러 가지 도형', from: 27, to: 52 }, { name: '3. 덧셈과 뺄셈', from: 53, to: 80 }, { name: '4. 길이 재기', from: 81, to: 100 }, { name: '5. 분류하기', from: 101, to: 120 }, { name: '6. 곱셈', from: 121, to: 140 }] },
+  { id: 'b-wsc-2-2', title: '왕수학 최상위 2-2', subject: '수학', grade: 2, semester: 2,
+    units: [{ name: '1. 네 자리 수', from: 5, to: 26 }, { name: '2. 곱셈구구', from: 27, to: 54 }, { name: '3. 길이 재기', from: 55, to: 76 }, { name: '4. 시각과 시간', from: 77, to: 100 }, { name: '5. 표와 그래프', from: 101, to: 120 }, { name: '6. 규칙 찾기', from: 121, to: 144 }] },
 ];
 function ensurePresetBooks() {
   if (!S().kids.length) return;
-  for (const b of PRESET_BOOKS) if (!Store.get('book', b.id)) Store.put('book', b.id, { ...b, units: [], pages: {} }, { silent: true });
+  for (const b of PRESET_BOOKS) {
+    const have = Store.get('book', b.id);
+    if (!have) Store.put('book', b.id, { ...b, pages: {} }, { silent: true });
+    else if (!(have.units || []).length) Store.put('book', b.id, { ...have, units: b.units }, { silent: true });
+  }
 }
 /* 그 아이의 지금 학년·학기 문제집을 먼저 고릅니다 */
 function defaultBookFor(kidId) {
