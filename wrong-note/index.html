@@ -1,35 +1,27 @@
 <!doctype html>
-<html lang="ko" data-theme="sky">
+<html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>다시봄 오답노트</title>
-<meta name="description" content="틀린 문제를 다른 날 다시 만나고, 맞히면 꽃으로 피우는 가족 오답노트">
-<meta name="theme-color" content="#2f7fe0">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="다시봄">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap">
-<link rel="stylesheet" href="style.css">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>다시봄 오답노트 – 주소가 바뀌었어요</title>
+<meta http-equiv="refresh" content="3; url=https://nami4k.github.io/dasibom/">
+<style>
+  :root { color-scheme: light; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f2f7ff; color: #1d3350;
+    font-family: system-ui, 'Noto Sans KR', sans-serif; padding: 0 16px; text-align: center; }
+  a { display: inline-block; margin-top: 16px; padding: 14px 22px; border-radius: 16px; background: #2f7fe0; color: #fff; text-decoration: none; font-size: 18px; }
+</style>
 </head>
 <body>
-<header id="top"></header>
-<main id="main"></main>
-<nav id="nav"></nav>
-<div id="overlay"></div>
-<div id="toast" role="status" aria-live="polite"></div>
-<script src="config.js"></script>
-<script src="js/vendor/qrcode.js"></script>
-<script src="js/util.js"></script>
-<script src="js/store.js"></script>
-<script src="js/logic.js"></script>
-<script src="js/photo.js"></script>
-<script src="js/app.js"></script>
-<script>boot();</script>
+<main>
+  <h1>오답노트 주소가 바뀌었어요</h1>
+  <p>새 주소에서 열고, 거기서 "앱 설치"를 눌러 주세요.</p>
+  <a href="https://nami4k.github.io/dasibom/">nami4k.github.io/dasibom 열기</a>
+</main>
+<script>
+  // 예전 주소에 설치된 저장본(서비스 워커)을 지웁니다.
+  if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => { if (r.scope.includes('/wrong-note/')) r.unregister(); }));
+  if (window.caches) caches.keys().then(ks => ks.filter(k => k.startsWith('dasibom-v')).forEach(k => caches.delete(k)));
+</script>
 </body>
 </html>
