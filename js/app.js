@@ -373,7 +373,7 @@ function showResult(r) {
   const box = $('#result'); if (!box) return;
   box.innerHTML = '';
   const id = wordId(r.term, r.lang), ex = W()[id];
-  const meanInput = h('input', { class: 'input mean-input', value: (ex && ex.meaning) || r.meanings[0] || '', placeholder: '카드 뒷면에 적을 뜻 (예: 용감한)' });
+  const meanInput = h('input', { class: 'input mean-input', value: (ex && ex.meaning) || (r.lang === 'en' && !r.machine ? r.meanings.join(', ') : r.meanings[0]) || '', placeholder: '카드 뒷면에 적을 뜻 (예: 용감한)' });
   meanInput.addEventListener('change', () => { const w = W()[id]; if (w && meanInput.value.trim()) { w.meaning = meanInput.value.trim(); save(); toast('뜻을 고쳤어요'); } });
   const starBtn = h('button', { class: 'star-btn' + (ex && ex.starred ? ' on' : ''), 'aria-label': '별 단어로 저장', onclick: () => toggleStar(r, meanInput, starBtn) }, '★');
   const w = { term: r.term, lang: r.lang };
@@ -394,8 +394,40 @@ function showResult(r) {
 
   if (r.parts && r.parts.length) parts.push(h('div', { class: 'hanja-parts' }, r.parts.map(p => h('div', { class: 'hanja-part' }, h('b', {}, p.ch), h('span', {}, p.hun || '?')))));
 
-  parts.push(h('h4', { class: 'label' }, '카드에 적을 뜻 ', h('small', {}, '(눌러서 고르거나 직접 고쳐요)')));
-  if (r.meanings.length) parts.push(h('div', { class: 'chips' }, r.meanings.map(t => h('button', { class: 'chip mean', onclick: () => { meanInput.value = t; meanInput.dispatchEvent(new Event('change')); } }, t))));
+  // 뜻 칩: 누르면 카드 뜻에 넣었다 뺐다 해요
+  const chipReg = [];
+  const picked = () => meanInput.value.split(/\s*[,;]\s*/).filter(Boolean);
+  const syncChips = () => { const p = picked(); chipReg.forEach(([b, t]) => b.classList.toggle('on', p.includes(t))); };
+  meanInput.addEventListener('input', syncChips);
+  const chip = (t, title) => {
+    const b = h('button', {
+      class: 'chip mean', title: title || null, onclick: () => {
+        let p = picked(); p = p.includes(t) ? p.filter(x => x !== t) : [...p, t];
+        meanInput.value = p.join(', '); meanInput.dispatchEvent(new Event('change')); syncChips();
+      },
+    }, t);
+    chipReg.push([b, t]); return b;
+  };
+  const posRows = groups => h('div', { class: 'pos-groups' }, groups.filter(g => g.ko.length).map(g =>
+    h('div', { class: 'pos-row' }, h('span', { class: 'pos big' }, g.label), h('div', { class: 'chips' }, g.ko.map((t, i) => chip(t, (g.glosses || [])[i]))))));
+  parts.push(h('h4', { class: 'label' }, '카드에 적을 뜻 ', h('small', {}, '(뜻을 눌러 넣었다 뺐다 하거나 직접 고쳐요)')));
+  if (r.aiGroups && r.aiGroups.length) parts.push(h('div', { class: 'ai-dict' }, h('small', { class: 'ai-tag' }, '🤖 AI 선생님이 정리한 뜻 (틀릴 수도 있어요)'), posRows(r.aiGroups)));
+  if (r.lang === 'en' && r.posGroups && r.posGroups.some(g => g.ko.length)) parts.push(posRows(r.posGroups));
+  else if (r.meanings.length) parts.push(h('div', { class: 'chips' }, r.meanings.map(t => chip(t))), r.machine ? h('p', { class: 'note' }, '⚠️ 사전에 한국어 뜻이 없어 기계 번역으로 찾았어요. 틀릴 수 있어요.') : null);
+  if (r.lang === 'en' && aiReady() && !(r.aiGroups && r.aiGroups.length)) {
+    const aiBtn = h('button', {
+      class: 'btn small ai-btn', onclick: async () => {
+        aiBtn.disabled = true; aiBtn.textContent = '🤖 AI가 찾는 중…';
+        try {
+          const a = await aiDictionary(r.term);
+          r.aiGroups = a.groups; r.aiExamples = a.examples; r.found = true;
+          if (!r.sources.includes('AI 선생님 (Claude)')) r.sources.push('AI 선생님 (Claude)');
+          Dict.remember(r); lastResult = r; showResult(r);
+        } catch (e) { aiBtn.disabled = false; aiBtn.textContent = '🤖 AI에게 쉬운 뜻 물어보기'; toast(aiErrorText(e), 3500); }
+      },
+    }, '🤖 AI에게 쉬운 뜻 물어보기');
+    parts.push(h('div', { class: 'row-tools' }, aiBtn, h('small', { class: 'note' }, `사전에 없는 뜻까지 쉽게 정리해 줘요 · 1번 ${won(usd(taskModel('dict'), 400, 600))}`)));
+  }
   parts.push(meanInput);
 
   if (r.defs.length) {
@@ -404,21 +436,23 @@ function showResult(r) {
       r.lang !== 'en' ? h('button', { class: 'mini', onclick: () => { meanInput.value = d.text; meanInput.dispatchEvent(new Event('change')); } }, '이걸로') : null)));
     parts.push(h('details', { class: 'more', open: r.lang !== 'en' || !r.meanings.length }, h('summary', {}, title), list));
   }
-  if (r.examples.length) {
+  const exs = [...(r.aiExamples || []), ...r.examples].slice(0, 3); // 예문은 3개만 (품사마다 하나씩)
+  if (exs.length) {
     parts.push(h('h4', { class: 'label' }, '예문'));
-    parts.push(h('ul', { class: 'examples' }, r.examples.slice(0, 5).map(e => exampleItem(e.text, w))));
+    parts.push(h('ul', { class: 'examples' }, exs.map(e => exampleItem(e.text, w, e.pos, e.ko))));
   }
   parts.push(extLinks(r.term, r.lang));
   if (r.sources && r.sources.length) parts.push(h('p', { class: 'source' }, '출처: ', r.sources.join(' · ')));
   box.append(h('div', { class: 'card result' }, parts));
+  syncChips(); // 이미 카드에 들어간 뜻은 눌린 모양으로
 }
-function exampleItem(text, w) {
-  const tr = h('div', { class: 'ex-tr' });
+function exampleItem(text, w, pos, ko) {
+  const tr = h('div', { class: 'ex-tr' }, ko || '');
   return h('li', {},
-    h('div', { class: 'ex-text' }, highlight(text, w)),
+    h('div', { class: 'ex-text' }, pos ? h('span', { class: 'pos' }, pos) : null, highlight(text, w)),
     h('div', { class: 'ex-tools' },
       h('button', { class: 'mini', onclick: () => Speech.say(text, w.lang === 'en' ? 'en' : 'ko') }, '🔊 듣기'),
-      w.lang === 'en' ? h('button', {
+      w.lang === 'en' && !ko ? h('button', {
         class: 'mini', onclick: async e => {
           e.currentTarget.disabled = true; tr.textContent = '해석 중…';
           try { const j = await Dict.translate(text); tr.textContent = j ? j.responseData.translatedText + '  (기계 번역)' : '해석하지 못했어요'; }
@@ -435,7 +469,7 @@ function toggleStar(r, meanInput, btn) {
   if (!meaning) { meanInput.focus(); toast('카드 뒷면에 적을 뜻을 먼저 적어 주세요'); return; }
   ws[id] = Object.assign(w || { id, created: Date.now(), s: newSrs() }, {
     term: r.term, lang: r.lang, meaning, pron: r.pron || '', audio: r.audio || '',
-    examples: [...new Set([...(w && w.examples || []), ...r.examples.slice(0, 6).map(e => e.text)])].slice(0, 8),
+    examples: [...new Set([...(w && w.examples || []), ...(r.aiExamples || []).map(e => e.text), ...r.examples.slice(0, 6).map(e => e.text)])].slice(0, 8),
     parts: (r.parts || []).map(p => ({ ch: p.ch, hun: p.hun })), starred: true,
   });
   save(); btn.classList.add('on'); burst(btn, 10); sfx('ok');

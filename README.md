@@ -49,7 +49,10 @@
 ## 사전 출처
 
 - 영어: Free Dictionary API — https://dictionaryapi.dev
-- 영→한 뜻·예문 해석: MyMemory 번역 API — https://mymemory.translated.net/doc/spec.php (기계 번역)
+- 영→한 뜻: 영어 위키낱말사전(en.wiktionary.org)의 품사·뜻별 번역표(`{{t|ko|…}}`, `{{tt|ko|…}}`)를 품사별로 모으고, 형용사는 꾸미는 꼴(가볍다 → 가벼운)로 바꿉니다. 아이에게 맞지 않는 뜻은 번역표 설명으로 거릅니다. 번역표가 길면 `단어/translations` 하위 문서도 읽습니다.
+- 위키낱말사전에 한국어 뜻이 없을 때만 MyMemory 기계 번역 — https://mymemory.translated.net/doc/spec.php (예문 "해석 보기"도 기계 번역)
+- AI 선생님이 켜져 있으면 "🤖 AI에게 쉬운 뜻 물어보기"(누를 때만, 문장 확인과 같은 모델)로 품사별 쉬운 뜻과 예문·해석을 받습니다.
+- 예문은 품사마다 하나씩 돌아가며 3개만 보여 주고, 힌트용으로 6개까지 저장합니다.
 - 국어·한자: 위키낱말사전 https://ko.wiktionary.org, https://en.wiktionary.org (MediaWiki API, CC BY-SA)
 - 한자 8급 50자: 한국어문회 한자능력검정시험 8급 배정한자 (앱 안에 포함, `js/data.js`)
 - 영어 읽기·말하기 인식: 기기의 Web Speech API (Chrome의 음성 인식은 Google 서버에서 처리)

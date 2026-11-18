@@ -7,7 +7,7 @@
  *  - 한자 8급 50자는 앱 안에 들어 있습니다 (data.js).
  */
 const Dict = (() => {
-  const CACHE_KEY = 'bwc.cache.v1';
+  const CACHE_KEY = 'bwc.cache.v2'; // v2: 영어 뜻을 품사별로 저장
   let cache = {};
   try { cache = JSON.parse(localStorage.getItem(CACHE_KEY)) || {}; } catch (e) { cache = {}; }
   function saveCache() {
@@ -90,19 +90,111 @@ const Dict = (() => {
     return out.slice(0, 6);
   }
 
+  /* ---------- 영어 → 한국어 뜻: 영어 위키낱말사전 번역표(품사·뜻별) ---------- */
+  const EN_POS = /^(={3,6})\s*(Noun|Verb|Adjective|Adverb|Pronoun|Preposition|Conjunction|Interjection|Determiner|Numeral|Article|Particle|Phrase|Prepositional phrase|Proper noun|Idiom|Contraction)\s*\1\s*$/i;
+  // 아이에게 맞지 않는 뜻은 뺍니다 (번역표의 영어 설명으로 거름)
+  const ADULT = /sex|sexual|erotic|porn|obscen|vulgar|offensive|derogator|slur|prostitut|genital|masturb|fuck|intercourse|orgasm|fetish|narcotic/i;
+  function englishSection(wt) {
+    const i = wt.search(/^==\s*English\s*==\s*$/m);
+    if (i < 0) return '';
+    const rest = wt.slice(i + 4), j = rest.search(/^==[^=]/m);
+    return j >= 0 ? rest.slice(0, j) : rest;
+  }
+  function koFromLine(ln) {
+    if (/\{\{(?:q|qual|qualifier|i)\|[^}]*\b(prefix|suffix)\b/i.test(ln)) return [];
+    const out = [];
+    for (const m of ln.matchAll(/\{\{tt?\+?\|ko\|((?:[^{}]|\{\{[^{}]*\}\})*?)\}\}/g)) {
+      let v = m[1].replace(/\[\[(?:[^|\]]*\|)?([^\]]*)\]\]/g, '$1').split('|')[0];
+      v = v.replace(/\([㐀-鿿豈-﫿]+\)/g, '').replace(/([가-힣])-([가-힣])/g, '$1$2').replace(/\s+/g, ' ').trim();
+      if (v && /[가-힣]/.test(v) && !out.includes(v)) out.push(v);
+    }
+    return out;
+  }
+  function cleanGloss(g) {
+    const pos = g.split('|').filter(x => !/^\s*[\w-]+\s*=/.test(x));
+    return (pos[0] || '').replace(/'{2,}/g, '').replace(/\[\[(?:[^|\]]*\|)?([^\]]*)\]\]/g, '$1').replace(/^[\d.]+\s*/, '').trim();
+  }
+  function parseEnTrans(wt) {
+    const out = []; let cur = null, lvl = 99, gloss = null;
+    for (const ln of englishSection(wt).split('\n')) {
+      const hm = ln.match(/^(=+)\s*(.+?)\s*=+\s*$/);
+      if (hm) {
+        const pm = ln.match(EN_POS);
+        if (pm) { cur = { key: pm[2].toLowerCase(), senses: [], sub: false }; out.push(cur); lvl = pm[1].length; }
+        else if (hm[1].length <= lvl) { cur = null; lvl = 99; }
+        gloss = null; continue;
+      }
+      if (!cur) continue;
+      if (/\{\{see translation subpage/.test(ln)) cur.sub = true;
+      if (/\{\{(?:trans-top-see|checktrans-top)/.test(ln)) { gloss = null; continue; }
+      const tm = ln.match(/\{\{trans-top(?:-also)?\|((?:[^{}]|\{\{[^{}]*\}\})*)\}\}/);
+      if (tm) gloss = cleanGloss(tm[1]);
+      if (/\{\{trans-bottom/.test(ln)) { gloss = null; continue; }
+      if (gloss !== null && /^\*:?\s*Korean\s*:/.test(ln) && !ADULT.test(gloss)) {
+        const ko = koFromLine(ln);
+        if (ko.length) cur.senses.push({ gloss, ko });
+      }
+    }
+    return out;
+  }
+  /* 형용사 기본형 → 꾸미는 꼴 (가볍다 → 가벼운, 밝다 → 밝은, 행복하다 → 행복한, 빨갛다 → 빨간) */
+  function toAdnominal(w) {
+    const m = w.match(/^(.*?)([가-힣])다$/);
+    if (!m) return w;
+    const [, head, last] = m;
+    if (/[있없]$/.test(last)) return head + last + '는';
+    const c = last.charCodeAt(0) - 0xAC00, jong = c % 28, base = last.charCodeAt(0) - jong;
+    const ch = n => String.fromCharCode(base + n);
+    if (jong === 0) return head + ch(4);                                  // 예쁘다 → 예쁜, 행복하다 → 행복한
+    if (jong === 8) return head + ch(4);                                  // ㄹ: 길다 → 긴
+    if (jong === 17 && last !== '좁') return head + ch(0) + '운';         // ㅂ: 가볍다 → 가벼운 (좁다는 좁은)
+    if (jong === 27 && last !== '좋') return head + ch(4);                // ㅎ: 빨갛다 → 빨간 (좋다는 좋은)
+    return head + last + '은';                                            // 밝다 → 밝은, 작다 → 작은
+  }
+  async function koByPos(word) {
+    const wt = await wikitext('en.wiktionary.org', word);
+    if (!wt) return [];
+    let list = parseEnTrans(wt);
+    if (list.some(x => x.sub)) {
+      try {
+        const sub = await wikitext('en.wiktionary.org', word + '/translations');
+        if (sub) {
+          const sl = parseEnTrans(sub);
+          for (const x of list) if (x.sub) { const y = sl.find(z => z.key === x.key); if (y) x.senses = y.senses.concat(x.senses); }
+        }
+      } catch (e) { /* 번역 하위 문서를 못 받아도 본문 것만 씁니다 */ }
+    }
+    // 같은 품사(어원이 달라 두 번 나온 것)는 합치고, 품사마다 뜻은 6개까지
+    const merged = [];
+    for (const x of list) {
+      let g = merged.find(z => z.key === x.key);
+      if (!g) { g = { key: x.key, label: POS_KO[x.key] || x.key, ko: [], glosses: [] }; merged.push(g); }
+      for (const s of x.senses) for (const k0 of s.ko) { const k = x.key === 'adjective' ? k0.split(' ').map((t, i, a) => i === a.length - 1 ? toAdnominal(t) : t).join(' ') : k0; if (!g.ko.includes(k) && g.ko.length < 6) { g.ko.push(k); g.glosses.push(s.gloss); } }
+    }
+    return merged.filter(g => g.ko.length);
+  }
+
   async function lookupEn(term) {
     const r = blank(term, 'en');
-    let [d, m] = await Promise.allSettled([freeDict(term), translate(term)]);
+    r.posGroups = [];
+    let [d, k] = await Promise.allSettled([freeDict(term), koByPos(term.toLowerCase())]);
     let entries = d.status === 'fulfilled' ? d.value : null;
+    let groups = k.status === 'fulfilled' ? k.value : [];
     if (d.status === 'rejected') r.errors.push('영어사전에 연결하지 못했어요');
     if (!entries && d.status === 'fulfilled' && !/\s/.test(term)) {
       for (const c of lemmaCandidates(term)) {
         try { entries = await freeDict(c); } catch (e) { break; }
-        if (entries) { r.note = `기본형 '${c}'(으)로 찾았어요`; break; }
+        if (entries) {
+          r.note = `기본형 '${c}'(으)로 찾았어요`;
+          if (!groups.length) { try { groups = await koByPos(c); } catch (e) { } }
+          break;
+        }
       }
     }
+    // 영영 뜻풀이와 예문을 품사별로 모읍니다
+    const byPos = {};
     if (entries) {
-      r.found = true; r.sources.push('Free Dictionary API (dictionaryapi.dev, 위키낱말사전 기반)');
+      r.found = true; r.sources.push('Free Dictionary API (dictionaryapi.dev)');
       for (const e of entries) {
         if (!r.pron) r.pron = e.phonetic || (e.phonetics || []).map(p => p.text).find(Boolean) || '';
         if (!r.audio) {
@@ -110,20 +202,32 @@ const Dict = (() => {
           r.audio = ((ps.find(p => /-us\.mp3$/.test(p.audio)) || ps[0]) || {}).audio || '';
         }
         for (const mm of e.meanings || []) {
+          const key = (mm.partOfSpeech || '').toLowerCase();
+          const b = byPos[key] ||= { defs: [], ex: [] };
           for (const df of mm.definitions || []) {
-            if (r.defs.length < 10) r.defs.push({ pos: POS_KO[mm.partOfSpeech] || mm.partOfSpeech || '', text: df.definition });
-            if (df.example && !r.examples.some(x => x.text === df.example)) r.examples.push({ text: df.example });
+            if (b.defs.length < 2) b.defs.push(df.definition);
+            if (df.example && !b.ex.includes(df.example)) b.ex.push(df.example);
           }
         }
       }
     }
-    if (m.status === 'fulfilled' && m.value) {
-      r.meanings = koCandidates(m.value, term);
-      if (r.meanings.length) { r.found = true; r.sources.push('MyMemory 번역 (mymemory.translated.net)'); }
-    } else if (m.status === 'rejected') r.errors.push('한국어 뜻(번역)에 연결하지 못했어요');
+    if (groups.length) { r.found = true; r.sources.push('영어 위키낱말사전 번역표 (en.wiktionary.org, CC BY-SA)'); }
+    for (const g of groups) { g.defs = (byPos[g.key] || {}).defs || []; }
+    for (const key of Object.keys(byPos)) if (!groups.some(g => g.key === key)) groups.push({ key, label: POS_KO[key] || key, ko: [], glosses: [], defs: byPos[key].defs });
+    r.posGroups = groups;
+    r.defs = groups.flatMap(g => g.defs.map(t => ({ pos: g.label, text: t })));
+    // 예문: 품사마다 하나씩 돌아가며 고르기 (화면에는 3개, 힌트용으로 6개까지 저장)
     const stem = term.toLowerCase().slice(0, Math.max(3, term.length - 2));
-    r.examples.sort((a, b) => (b.text.toLowerCase().includes(stem) - a.text.toLowerCase().includes(stem)) || a.text.length - b.text.length);
-    r.examples = r.examples.slice(0, 8);
+    const pools = groups.map(g => ((byPos[g.key] || {}).ex || []).slice().sort((a, b) => (b.toLowerCase().includes(stem) - a.toLowerCase().includes(stem)) || a.length - b.length).map(t => ({ text: t, pos: g.label })));
+    for (let i = 0; r.examples.length < 6 && pools.some(p => p[i]); i++) for (const p of pools) if (p[i] && r.examples.length < 6) r.examples.push(p[i]);
+    // 한국어 뜻: 품사마다 첫 뜻을 기본으로 (위키낱말사전에 없을 때만 기계 번역)
+    r.meanings = groups.filter(g => g.ko.length).slice(0, 3).map(g => g.ko[0]);
+    if (!r.meanings.length) {
+      try {
+        const m = await translate(term);
+        if (m) { r.meanings = koCandidates(m, term); r.machine = true; if (r.meanings.length) { r.found = true; r.sources.push('MyMemory 기계 번역 (mymemory.translated.net)'); } }
+      } catch (e) { r.errors.push('한국어 뜻(번역)에 연결하지 못했어요'); }
+    }
     return r;
   }
 
@@ -282,5 +386,7 @@ const Dict = (() => {
     return false;
   }
 
-  return { lookup, detect, translate, hanjaByReading, ping, HANJA_RE };
+  /* AI 사전 결과처럼 나중에 덧붙인 내용도 저장해 둡니다 */
+  function remember(r) { if (r && r.found) { cache[r.lang + ':' + r.term.toLowerCase()] = { t: Date.now(), r }; saveCache(); } }
+  return { lookup, detect, translate, hanjaByReading, ping, remember, parseEnTrans, koFromLine, toAdnominal, HANJA_RE };
 })();
