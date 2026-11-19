@@ -56,6 +56,8 @@
 - 예문은 품사마다 하나씩 돌아가며 3개만 보여 주고, 힌트용으로 6개까지 저장합니다.
 - 국어·한자: 위키낱말사전 https://ko.wiktionary.org, https://en.wiktionary.org (MediaWiki API, CC BY-SA)
 - 한자 8급 50자: 한국어문회 한자능력검정시험 8급 배정한자 (앱 안에 포함, `js/data.js`)
+- 한자 음 → 한자·훈음: libhangul 한자 사전 `hanja.txt` (Copyright (c) 2005,2006 Choe Hwanjin, BSD-3, `data/LICENSE-libhangul-hanja.txt`). 음마다 자주 쓰는 순으로 20자까지, 5,451자를 `data/hanja.json`(약 190KB)으로 만들어 처음 쓸 때만 불러옵니다. 다시 만들기: `python3 tools/build_hanja.py /usr/share/libhangul/hanja/hanja.txt > data/hanja.json` (Debian/Ubuntu `libhangul-data` 패키지).
+- 한자 칸에서 한글 음을 넣으면: 한 글자는 그 음의 한자 목록(8급 먼저), 두 글자 이상은 글자마다 한자를 골라 한자어를 만들어 찾습니다. 국어 검색 결과에도 "漢 음으로 한자 찾기" 버튼이 있습니다. 한자어 읽기의 첫 글자에는 두음법칙(老人 → 노인)을 적용합니다.
 - 영어 읽기·말하기 인식: 기기의 Web Speech API (Chrome의 음성 인식은 Google 서버에서 처리)
 - AI 선생님: Anthropic Claude API (`js/ai.js`)
 - 무료 글자 인식: Tesseract.js 5.1.1 (cdn.jsdelivr.net에서 필요할 때 불러옴)

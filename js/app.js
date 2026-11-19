@@ -355,14 +355,47 @@ async function doSearch(term, forced) {
   lastResult = r; addHist(term, lang);
   if ($('#result')) showResult(r);
 }
-function showHanjaByReading(syl) {
-  const box = $('#result'); box.innerHTML = '';
-  const list = [...syl].length === 1 ? Dict.hanjaByReading(syl) : [];
-  box.append(h('div', { class: 'card' },
-    h('h4', { class: 'label' }, `'${syl}' 음을 가진 8급 한자`),
-    list.length ? h('div', { class: 'hanja-grid' }, list.map(x => h('button', { class: 'hanja-cell', onclick: () => { $('#q').value = x.ch; doSearch(x.ch, 'hanja'); } }, h('b', {}, x.ch), h('small', {}, x.hun))))
-      : h('p', { class: 'note' }, '앱 안에 있는 8급 한자 중에는 없어요. 한자를 직접 입력하거나(키보드 한자 변환·손글씨), 아래 네이버 한자사전에서 음으로 찾아보세요.'),
-    extLinks(syl, 'hanja')));
+async function showHanjaByReading(text) {
+  const box = $('#result'); if (!box) return;
+  const syls = [...text].filter(c => /[가-힣]/.test(c)).slice(0, 4);
+  box.innerHTML = ''; box.append(h('div', { class: 'loading' }, h('span', { class: 'spin' }), '한자를 찾고 있어요…'));
+  const lists = await Promise.all(syls.map(sy => Dict.hanjaByReading(sy)));
+  if (!$('#result')) return;
+  box.innerHTML = '';
+  if (!syls.length) { box.append(h('p', { class: 'note' }, '한글 음(예: 학)이나 한자를 넣어 주세요.')); return; }
+  const multi = syls.length > 1, pick = syls.map(() => null);
+  const wordBtn = h('button', { class: 'btn primary wide', disabled: true }, '글자를 하나씩 골라요');
+  const updateWord = () => {
+    const ok = pick.every(Boolean);
+    wordBtn.disabled = !ok;
+    wordBtn.textContent = ok ? `「${pick.join('')}」(${syls.join('')}) 찾기` : `${syls.map((s, i) => pick[i] || s).join('')} — 글자를 하나씩 골라요`;
+  };
+  wordBtn.onclick = () => { const wd = pick.join(''); $('#q').value = wd; doSearch(wd, 'hanja'); };
+  const card = h('div', { class: 'card' });
+  if (multi) card.append(h('p', { class: 'note' }, `한자어 '${syls.join('')}': 글자마다 맞는 한자를 하나씩 눌러 골라요.`));
+  syls.forEach((sy, i) => {
+    const list = lists[i];
+    const grid = h('div', { class: 'hanja-grid' });
+    const cell = x => h('button', {
+      class: 'hanja-cell' + (x.grade8 ? ' g8' : ''), title: x.hun, onclick: e => {
+        if (!multi) { $('#q').value = x.ch; doSearch(x.ch, 'hanja'); return; }
+        pick[i] = x.ch; [...grid.children].forEach(b => b.classList.remove('on')); e.currentTarget.classList.add('on'); updateWord();
+      },
+    }, h('b', {}, x.ch), h('small', {}, x.hun), x.grade8 ? h('i', { class: 'g8-tag' }, '8급') : null);
+    list.slice(0, 9).forEach(x => grid.append(cell(x)));
+    card.append(h('h4', { class: 'label' }, `'${sy}' 음을 가진 한자 `, h('small', {}, list.length ? `${list.length}개 · 자주 쓰는 순` : '')));
+    if (!list.length) card.append(h('p', { class: 'note' }, '찾지 못했어요. 받침까지 맞게 적었는지 확인해 주세요.'));
+    else {
+      card.append(grid);
+      if (list.length > 9) {
+        const more = h('button', { class: 'btn small ghost', onclick: () => { list.slice(9).forEach(x => grid.append(cell(x))); more.remove(); } }, `더 보기 (${list.length - 9})`);
+        card.append(more);
+      }
+    }
+  });
+  if (multi) { card.append(wordBtn); updateWord(); }
+  card.append(extLinks(syls.join(''), 'hanja'), h('p', { class: 'source' }, '출처: 앱에 들어 있는 한자 8급 50자 · libhangul 한자 사전 (BSD-3)'));
+  box.append(card);
 }
 function extLinks(term, lang) {
   const q = encodeURIComponent(term);
@@ -450,6 +483,7 @@ function showResult(r) {
     parts.push(h('h4', { class: 'label' }, '예문'));
     parts.push(h('ul', { class: 'examples' }, exs.map(e => exampleItem(e.text, w, e.pos, e.ko))));
   }
+  if (r.lang === 'ko' && /^[가-힣]{1,4}$/.test(r.term)) parts.push(h('div', { class: 'row-tools' }, h('button', { class: 'btn small', onclick: () => { searchLang = 'hanja'; lastResult = null; render(); $('#q').value = r.term; showHanjaByReading(r.term); } }, `漢 '${r.term}' 음으로 한자 찾기`)));
   parts.push(extLinks(r.term, r.lang));
   if (r.sources && r.sources.length) parts.push(h('p', { class: 'source' }, '출처: ', r.sources.join(' · ')));
   box.append(h('div', { class: 'card result' }, parts));

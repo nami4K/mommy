@@ -290,6 +290,37 @@ const Dict = (() => {
   }
 
   /* ---------- 한자 ---------- */
+  /* 음 → 한자·훈음 자료 (libhangul 한자 사전, BSD-3). 처음 쓸 때 한 번 불러와요 */
+  let HJ = null;
+  async function hanjaData() {
+    if (HJ) return HJ;
+    const r = await fetch('data/hanja.json');
+    const j = await r.json();
+    const byChar = {};
+    for (const [rd, list] of Object.entries(j.r)) for (const [c, hun] of list) {
+      const own = (hun.split(',')[0].trim().split(/\s+/).pop() || '');
+      if (!byChar[c] || own === rd) byChar[c] = { rd, hun }; // 女: '녀'(본음)를 '여'보다 먼저
+    }
+    HJ = { byRead: j.r, byChar };
+    return HJ;
+  }
+  /* 두음법칙: 첫 글자 녀→여, 리→이, 로→노 */
+  function dueum(syl) {
+    const c = syl.charCodeAt(0) - 0xAC00;
+    if (c < 0 || c > 11171) return syl;
+    const cho = Math.floor(c / 588), jung = Math.floor((c % 588) / 28), jong = c % 28;
+    const iy = [2, 6, 7, 12, 17, 20].includes(jung); // ㅑ ㅕ ㅖ ㅛ ㅠ ㅣ
+    let nc = cho;
+    if (cho === 5) nc = iy ? 11 : 2;      // ㄹ → ㅇ / ㄴ
+    else if (cho === 2 && iy) nc = 11;    // ㄴ → ㅇ
+    return String.fromCharCode(0xAC00 + nc * 588 + jung * 28 + jong);
+  }
+  function shortHun(hun) { return hun.split(',').slice(0, 2).map(s => s.trim()).join(', '); }
+  async function fromHanjaData(ch) {
+    const d = await hanjaData(), e = d.byChar[ch];
+    if (!e) return null;
+    return { ch, hun: shortHun(e.hun), eum: e.rd, eum1: dueum(e.rd), src: 'libhangul' };
+  }
   function fromHanja8(ch) {
     const k = HANJA_ALIAS[ch] || ch, e = HANJA8[k];
     if (!e) return null;
@@ -330,12 +361,14 @@ const Dict = (() => {
     const parts = await Promise.all(chars.map(async ch => {
       const local = fromHanja8(ch);
       if (local) return local;
+      try { const d = await fromHanjaData(ch); if (d) return d; } catch (e) { /* 자료를 못 불러오면 위키낱말사전으로 */ }
       try { return (await hanjaFromEnWiki(ch)) || { ch, hun: '', eum: '' }; }
       catch (e) { r.errors.push('한자 사전에 연결하지 못했어요'); return { ch, hun: '', eum: '' }; }
     }));
     r.parts = parts;
     if (parts.some(p => p.hun)) { r.found = true; }
     if (parts.some(p => p.src === '8급')) r.sources.push('앱에 들어 있는 한자 8급 50자');
+    if (parts.some(p => p.src === 'libhangul')) r.sources.push('libhangul 한자 사전 (BSD-3)');
     if (parts.some(p => p.src === 'en.wiktionary')) r.sources.push('영어 위키낱말사전 (en.wiktionary.org, CC BY-SA)');
     if (parts.length && parts.every(p => p.eum)) r.reading = parts.map((p, i) => i === 0 ? p.eum1 || p.eum : p.eum).join('');
 
@@ -369,9 +402,14 @@ const Dict = (() => {
   }
 
   /* 음(한글)으로 8급 한자 찾기 */
-  function hanjaByReading(syl) {
+  /* 음(한 글자)으로 한자 찾기: 8급 한자를 먼저, 그다음 자주 쓰는 순 */
+  async function hanjaByReading(syl) {
     const out = [];
-    for (const [ch, e] of Object.entries(HANJA8)) if (e[1] === syl || e[2] === syl || (e[3] || '').endsWith(syl)) out.push({ ch, hun: `${e[0]} ${e[1]}` + (e[3] ? `, ${e[3]}` : '') });
+    for (const [ch, e] of Object.entries(HANJA8)) if (e[1] === syl || e[2] === syl || (e[3] || '').endsWith(' ' + syl)) out.push({ ch, hun: `${e[0]} ${e[1]}` + (e[3] ? `, ${e[3]}` : ''), grade8: true });
+    try {
+      const d = await hanjaData();
+      for (const [ch, hun] of d.byRead[syl] || []) if (!out.some(x => x.ch === ch || HANJA_ALIAS[ch] === x.ch)) out.push({ ch, hun: shortHun(hun) });
+    } catch (e) { /* 자료를 못 불러오면 8급만 */ }
     return out;
   }
 
