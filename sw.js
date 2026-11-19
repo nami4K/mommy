@@ -1,5 +1,5 @@
 /* 앱 화면 파일을 저장해 두어 인터넷이 없어도 테스트할 수 있게 합니다. 사전 검색은 인터넷이 필요해요. */
-const VERSION = 'bwc-v6';
+const VERSION = 'bwc-v7';
 const SHELL = ['./', 'index.html', 'style.css', 'js/data.js', 'js/avatar.js', 'js/dict.js', 'js/app.js', 'js/ai.js', 'js/sets.js', 'js/speak.js', 'js/main.js', 'js/vendor/qrcode.js', 'js/vendor/jsQR.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {

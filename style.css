@@ -427,3 +427,7 @@ mark.fix { background: var(--green2); color: #1d8a62; font-weight: 600; }
 .ai-tag { display: block; color: var(--lav); margin-bottom: 6px; }
 .ai-btn { margin-right: 6px; }
 .ex-text .pos { vertical-align: middle; }
+.ai-extra { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--sub); margin-top: 8px; }
+.ai-extra b { color: var(--ink); font-weight: 600; }
+.ai-dict .chip.mean { text-align: left; line-height: 1.4; border-radius: 16px; }
+textarea.mean-input { resize: vertical; line-height: 1.45; }

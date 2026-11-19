@@ -373,7 +373,7 @@ function showResult(r) {
   const box = $('#result'); if (!box) return;
   box.innerHTML = '';
   const id = wordId(r.term, r.lang), ex = W()[id];
-  const meanInput = h('input', { class: 'input mean-input', value: (ex && ex.meaning) || (r.lang === 'en' && !r.machine ? r.meanings.join(', ') : r.meanings[0]) || '', placeholder: '카드 뒷면에 적을 뜻 (예: 용감한)' });
+  const meanInput = h(r.lang === 'en' ? 'input' : 'textarea', { class: 'input mean-input', rows: r.lang === 'en' ? null : 2, value: (ex && ex.meaning) || (r.lang === 'en' && !r.machine ? r.meanings.join(', ') : r.meanings[0]) || '', placeholder: '카드 뒷면에 적을 뜻 (예: 용감한)' });
   meanInput.addEventListener('change', () => { const w = W()[id]; if (w && meanInput.value.trim()) { w.meaning = meanInput.value.trim(); save(); toast('뜻을 고쳤어요'); } });
   const starBtn = h('button', { class: 'star-btn' + (ex && ex.starred ? ' on' : ''), 'aria-label': '별 단어로 저장', onclick: () => toggleStar(r, meanInput, starBtn) }, '★');
   const w = { term: r.term, lang: r.lang };
@@ -396,14 +396,16 @@ function showResult(r) {
 
   // 뜻 칩: 누르면 카드 뜻에 넣었다 뺐다 해요
   const chipReg = [];
-  const picked = () => meanInput.value.split(/\s*[,;]\s*/).filter(Boolean);
+  const multi = r.lang === 'en'; // 영어는 여러 뜻을 골라 넣고, 국어·한자는 뜻풀이 하나를 골라요
+  const picked = () => multi ? meanInput.value.split(/\s*[,;]\s*/).filter(Boolean) : [meanInput.value.trim()];
   const syncChips = () => { const p = picked(); chipReg.forEach(([b, t]) => b.classList.toggle('on', p.includes(t))); };
   meanInput.addEventListener('input', syncChips);
   const chip = (t, title) => {
     const b = h('button', {
       class: 'chip mean', title: title || null, onclick: () => {
-        let p = picked(); p = p.includes(t) ? p.filter(x => x !== t) : [...p, t];
-        meanInput.value = p.join(', '); meanInput.dispatchEvent(new Event('change')); syncChips();
+        if (multi) { let p = picked(); p = p.includes(t) ? p.filter(x => x !== t) : [...p, t]; meanInput.value = p.join(', '); }
+        else meanInput.value = t;
+        meanInput.dispatchEvent(new Event('change')); syncChips();
       },
     }, t);
     chipReg.push([b, t]); return b;
@@ -411,16 +413,23 @@ function showResult(r) {
   const posRows = groups => h('div', { class: 'pos-groups' }, groups.filter(g => g.ko.length).map(g =>
     h('div', { class: 'pos-row' }, h('span', { class: 'pos big' }, g.label), h('div', { class: 'chips' }, g.ko.map((t, i) => chip(t, (g.glosses || [])[i]))))));
   parts.push(h('h4', { class: 'label' }, '카드에 적을 뜻 ', h('small', {}, '(뜻을 눌러 넣었다 뺐다 하거나 직접 고쳐요)')));
-  if (r.aiGroups && r.aiGroups.length) parts.push(h('div', { class: 'ai-dict' }, h('small', { class: 'ai-tag' }, '🤖 AI 선생님이 정리한 뜻 (틀릴 수도 있어요)'), posRows(r.aiGroups)));
+  if (r.aiGroups && r.aiGroups.length) {
+    const x = r.aiExtra || {};
+    parts.push(h('div', { class: 'ai-dict' }, h('small', { class: 'ai-tag' }, '🤖 AI 선생님이 정리한 뜻 (틀릴 수도 있어요)'), posRows(r.aiGroups),
+      x.hanja || x.similar || x.opposite ? h('div', { class: 'ai-extra' },
+        x.hanja ? h('span', {}, '한자 ', h('b', { class: 'lang-hanja' }, x.hanja)) : null,
+        x.similar ? h('span', {}, '비슷한 말 ', h('b', {}, x.similar)) : null,
+        x.opposite ? h('span', {}, '반대말 ', h('b', {}, x.opposite)) : null) : null));
+  }
   if (r.lang === 'en' && r.posGroups && r.posGroups.some(g => g.ko.length)) parts.push(posRows(r.posGroups));
   else if (r.meanings.length) parts.push(h('div', { class: 'chips' }, r.meanings.map(t => chip(t))), r.machine ? h('p', { class: 'note' }, '⚠️ 사전에 한국어 뜻이 없어 기계 번역으로 찾았어요. 틀릴 수 있어요.') : null);
-  if (r.lang === 'en' && aiReady() && !(r.aiGroups && r.aiGroups.length)) {
+  if (aiReady() && !(r.aiGroups && r.aiGroups.length)) {
     const aiBtn = h('button', {
       class: 'btn small ai-btn', onclick: async () => {
         aiBtn.disabled = true; aiBtn.textContent = '🤖 AI가 찾는 중…';
         try {
-          const a = await aiDictionary(r.term);
-          r.aiGroups = a.groups; r.aiExamples = a.examples; r.found = true;
+          const a = await aiDictionary(r.term, r.lang, r.reading);
+          r.aiGroups = a.groups; r.aiExamples = a.examples; r.aiExtra = a.extra || null; r.found = true;
           if (!r.sources.includes('AI 선생님 (Claude)')) r.sources.push('AI 선생님 (Claude)');
           Dict.remember(r); lastResult = r; showResult(r);
         } catch (e) { aiBtn.disabled = false; aiBtn.textContent = '🤖 AI에게 쉬운 뜻 물어보기'; toast(aiErrorText(e), 3500); }
