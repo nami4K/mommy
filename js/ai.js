@@ -232,8 +232,8 @@ async function aiDictionary(term, lang = 'en', reading = '') {
     for (const s of out.senses || []) {
       if (!s.meaning) continue;
       let g = groups.find(x => x.key === s.pos);
-      if (!g) { g = { key: s.pos, label: s.pos, ko: [], glosses: [] }; groups.push(g); }
-      if (!g.ko.includes(s.meaning)) g.ko.push(s.meaning);
+      if (!g) { g = { key: s.pos, label: s.pos, ko: [], glosses: [], senses: [] }; groups.push(g); }
+      if (!g.ko.includes(s.meaning)) { g.ko.push(s.meaning); g.senses.push({ ko: [s.meaning], ex: s.example || '' }); }
       if (s.example) examples.push({ text: s.example, pos: s.pos });
     }
     return { groups, examples: examples.slice(0, 6), extra: { hanja: out.hanja || '', similar: out.similar || '', opposite: out.opposite || '' } };
@@ -243,8 +243,8 @@ async function aiDictionary(term, lang = 'en', reading = '') {
   for (const s of out.senses || []) {
     if (!s.ko) continue;
     let g = groups.find(x => x.key === s.pos);
-    if (!g) { g = { key: s.pos, label: POS_KO[s.pos] || s.pos, ko: [], glosses: [] }; groups.push(g); }
-    if (!g.ko.includes(s.ko)) { g.ko.push(s.ko); g.glosses.push(s.example_en); }
+    if (!g) { g = { key: s.pos, label: POS_KO[s.pos] || s.pos, ko: [], glosses: [], senses: [] }; groups.push(g); }
+    if (!g.ko.includes(s.ko)) { g.ko.push(s.ko); g.glosses.push(s.example_en); g.senses.push({ ko: [s.ko], ex: s.example_en || '', exKo: s.example_ko || '' }); }
     if (s.example_en) examples.push({ text: s.example_en, ko: s.example_ko, pos: g.label });
   }
   // 예문도 품사마다 하나씩 먼저

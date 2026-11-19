@@ -53,7 +53,8 @@
 - 위키낱말사전에 한국어 뜻이 없을 때만 MyMemory 기계 번역 — https://mymemory.translated.net/doc/spec.php (예문 "해석 보기"도 기계 번역)
 - AI 선생님이 켜져 있으면 "🤖 AI에게 쉬운 뜻 물어보기"(누를 때만, 문장 확인과 같은 모델)로 품사별 쉬운 뜻과 예문·해석을 받습니다. 국어·한자 단어도 같은 버튼으로 아이가 이해하는 쉬운 뜻풀이, 예문, 한자, 비슷한 말·반대말을 받습니다.
 - 국립국어원 사전(우리말샘·표준국어대사전) 오픈 API는 브라우저에서 바로 부르는 것(CORS)을 허용하지 않아(우리말샘 응답에 허용 헤더 없음을 확인) 지금은 쓰지 않습니다. 쓰려면 API 키를 숨기고 대신 불러 주는 작은 중계 서버가 필요합니다.
-- 예문은 품사마다 하나씩 돌아가며 3개만 보여 주고, 힌트용으로 6개까지 저장합니다.
+- 뜻마다 예문: 영어는 번역표의 뜻 설명과 Free Dictionary 영영 뜻풀이의 낱말이 절반 이상 겹칠 때만 그 뜻풀이의 예문을 붙입니다(애매하면 예문 없음, 술·담배 등이 들어간 예문은 뺌). 국어는 위키낱말사전에서 뜻 바로 아래 적힌 예문을, AI 사전은 뜻마다 받은 예문(영어는 해석 포함)을 보여 줍니다.
+- 뜻마다 예문이 없을 때만 아래에 예문을 3개(품사마다 하나씩) 따로 보여 줍니다. 별을 누르면 카드에 넣은 뜻의 예문을 맨 앞에 저장해서, 테스트 힌트도 그 뜻의 예문이 나옵니다.
 - 국어·한자: 위키낱말사전 https://ko.wiktionary.org, https://en.wiktionary.org (MediaWiki API, CC BY-SA)
 - 한자 8급 50자: 한국어문회 한자능력검정시험 8급 배정한자 (앱 안에 포함, `js/data.js`)
 - 한자 음 → 한자·훈음: libhangul 한자 사전 `hanja.txt` (Copyright (c) 2005,2006 Choe Hwanjin, BSD-3, `data/LICENSE-libhangul-hanja.txt`). 음마다 자주 쓰는 순으로 20자까지, 5,451자를 `data/hanja.json`(약 190KB)으로 만들어 처음 쓸 때만 불러옵니다. 다시 만들기: `python3 tools/build_hanja.py /usr/share/libhangul/hanja/hanja.txt > data/hanja.json` (Debian/Ubuntu `libhangul-data` 패키지).

@@ -436,3 +436,11 @@ textarea.mean-input { resize: vertical; line-height: 1.45; }
 .hanja-cell.on { border-color: var(--pink); background: #fff; }
 .hanja-cell.g8 { background: #fff7d6; }
 .g8-tag { position: absolute; top: 4px; right: 6px; font-size: 10px; font-style: normal; color: #b07c00; }
+
+/* 뜻마다 예문 */
+.senses { display: grid; gap: 10px; }
+.sense { display: grid; gap: 4px; }
+.sense-ex { font-size: 13px; color: var(--sub); line-height: 1.5; padding-left: 4px; border-left: 3px solid var(--pink2); margin-left: 4px; }
+.sense-ex .ex-text { font-size: 13px; }
+.sense-ex .mini { padding: 1px 6px; margin-left: 4px; }
+.sense-ex .ex-tr { margin-top: 2px; font-size: 12px; }

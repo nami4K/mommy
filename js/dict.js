@@ -168,12 +168,21 @@ const Dict = (() => {
     const merged = [];
     for (const x of list) {
       let g = merged.find(z => z.key === x.key);
-      if (!g) { g = { key: x.key, label: POS_KO[x.key] || x.key, ko: [], glosses: [] }; merged.push(g); }
-      for (const s of x.senses) for (const k0 of s.ko) { const k = x.key === 'adjective' ? k0.split(' ').map((t, i, a) => i === a.length - 1 ? toAdnominal(t) : t).join(' ') : k0; if (!g.ko.includes(k) && g.ko.length < 6) { g.ko.push(k); g.glosses.push(s.gloss); } }
+      if (!g) { g = { key: x.key, label: POS_KO[x.key] || x.key, ko: [], glosses: [], senses: [] }; merged.push(g); }
+      for (const s of x.senses) {
+        const ko = [];
+        for (const k0 of s.ko) { const k = x.key === 'adjective' ? k0.split(' ').map((t, i, a) => i === a.length - 1 ? toAdnominal(t) : t).join(' ') : k0; if (!g.ko.includes(k) && g.ko.length < 6) { g.ko.push(k); g.glosses.push(s.gloss); ko.push(k); } }
+        if (ko.length && g.senses.length < 4) g.senses.push({ gloss: s.gloss, ko }); // 뜻(번역표)마다 묶어 둠
+      }
     }
     return merged.filter(g => g.ko.length);
   }
 
+  const ADULT_EX = /\b(drunk|beer|wine|alcohol|vodka|whisk|cigar|smok|sex|kill|murder|gun|drug)/i;
+  const STOP = new Set('a an the of to in on or and for with by as at from that this be is are it its something someone one oneself which who used not into out up'.split(' '));
+  const words = s => new Set((s.toLowerCase().match(/[a-z]+/g) || []).filter(w => w.length > 2 && !STOP.has(w)).map(w => w.replace(/(ing|ed|es|s|ly)$/, '')));
+  function overlap(gloss, def) { const a = words(gloss), b = words(def); if (!a.size) return 0; let n = 0; for (const w of a) if (b.has(w)) n++; return n / a.size; }
+  function cleanEx(ex) { return ex.split(/\s;\s/)[0].trim().replace(/^./, c => c.toUpperCase()); }
   async function lookupEn(term) {
     const r = blank(term, 'en');
     r.posGroups = [];
@@ -203,10 +212,11 @@ const Dict = (() => {
         }
         for (const mm of e.meanings || []) {
           const key = (mm.partOfSpeech || '').toLowerCase();
-          const b = byPos[key] ||= { defs: [], ex: [] };
+          const b = byPos[key] ||= { defs: [], ex: [], all: [] };
           for (const df of mm.definitions || []) {
             if (b.defs.length < 2) b.defs.push(df.definition);
             if (df.example && !b.ex.includes(df.example)) b.ex.push(df.example);
+            if (df.example) b.all.push({ def: df.definition, ex: df.example });
           }
         }
       }
@@ -214,6 +224,20 @@ const Dict = (() => {
     if (groups.length) { r.found = true; r.sources.push('영어 위키낱말사전 번역표 (en.wiktionary.org, CC BY-SA)'); }
     for (const g of groups) { g.defs = (byPos[g.key] || {}).defs || []; }
     for (const key of Object.keys(byPos)) if (!groups.some(g => g.key === key)) groups.push({ key, label: POS_KO[key] || key, ko: [], glosses: [], defs: byPos[key].defs });
+    // 뜻마다 예문 붙이기: 번역표 설명과 영영 뜻풀이가 분명히 겹칠 때만 (애매하면 예문 없이)
+    for (const g of groups) {
+      const pool = ((byPos[g.key] || {}).all || []).filter(x => !ADULT_EX.test(x.ex));
+      const used = new Set();
+      for (const s of g.senses || []) {
+        let best = null, bs = 0;
+        for (const x of pool) {
+          if (used.has(x.ex)) continue;
+          const sc = overlap(s.gloss, x.def);
+          if (sc > bs) { bs = sc; best = x; }
+        }
+        if (best && bs >= 0.5) { used.add(best.ex); s.ex = cleanEx(best.ex); }
+      }
+    }
     r.posGroups = groups;
     r.defs = groups.flatMap(g => g.defs.map(t => ({ pos: g.label, text: t })));
     // 예문: 품사마다 하나씩 돌아가며 고르기 (화면에는 3개, 힌트용으로 6개까지 저장)
@@ -259,7 +283,13 @@ const Dict = (() => {
       if (!cur) { cur = { title: '', defs: [], ex: [], raw: '' }; secs.push(cur); }
       cur.raw += ln + '\n';
       m = ln.match(/^#+[:*]+\s*(.+)$/);
-      if (m) { const t = cleanWiki(m[1]); if (t && cur.ex.length < 6) cur.ex.push(t); continue; }
+      if (m) {
+        const t = cleanWiki(m[1]);
+        if (t && cur.ex.length < 6) cur.ex.push(t);
+        const last = cur.defs[cur.defs.length - 1];
+        if (t && last) (last.ex ||= []).push(t); // 바로 위 뜻의 예문
+        continue;
+      }
       m = ln.match(/^#+\s*(.+)$/);
       if (m) { const t = cleanWiki(m[1]); if (t && t.length > 1 && cur.defs.length < 8) cur.defs.push({ pos: /뜻|어원|발음|참고/.test(sub) ? '' : sub, text: t }); }
     }
@@ -283,6 +313,14 @@ const Dict = (() => {
         const hm = sec.raw.match(/[㐀-鿿豈-﫿]{1,8}/);
         if (hm) r.hanja = hm[0];
         r.meanings = r.defs.slice(0, 4).map(d => { const t = d.text.replace(/[.。]$/, ''); return t.length > 40 ? t.slice(0, 40) + '…' : t; });
+        // 품사별로 뜻과 그 뜻의 예문을 묶기
+        r.posGroups = [];
+        r.defs.slice(0, 4).forEach((d, i) => {
+          const label = d.pos || '뜻';
+          let g = r.posGroups.find(x => x.label === label);
+          if (!g) { g = { key: label, label, ko: [], senses: [] }; r.posGroups.push(g); }
+          g.ko.push(r.meanings[i]); g.senses.push({ ko: [r.meanings[i]], ex: (d.ex || [])[0] || '' });
+        });
       }
     }
     if (!r.found && /다$/.test(term) === false && /[었았했겠]|[요니까]$/.test(term)) r.note = "'-다'로 끝나는 기본형(예: 먹었어요 → 먹다)으로 찾아보세요";
